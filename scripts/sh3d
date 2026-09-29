@@ -36,12 +36,11 @@ if listening 9877; then
   echo "Sweet Home 3D is already running on $screen"
   exit 0
 fi
-# The Debian launcher takes the first Java it finds, which can be the display-less
-# JDK the plugin build needs; point it at a full runtime.
-for jre in /usr/lib/jvm/java-21-openjdk-amd64 /usr/lib/jvm/default-java; do
-  if [[ -e "$jre/lib/libawt_xawt.so" ]]; then export JAVA_HOME="$jre"; break; fi
-done
-DISPLAY="$screen" setsid nohup sweethome3d "$@" >"$logs/app.log" 2>&1 </dev/null &
+# The official 7.5 bundle (install-cws.sh), running on Java 21. The flags are Ubuntu's
+# launcher's: open the AWT internals Java3D needs, and read the furniture libraries
+# the Ubuntu package installs.
+export JDK_JAVA_OPTIONS="--add-exports java.desktop/sun.awt=ALL-UNNAMED -Dcom.eteks.sweethome3d.applicationFolders=$HOME/.eteks/sweethome3d:/usr/share/sweethome3d"
+DISPLAY="$screen" setsid nohup "$HOME/.local/opt/SweetHome3D-7.5/SweetHome3D" "$@" >"$logs/app.log" 2>&1 </dev/null &
 for _ in $(seq 60); do listening 9877 && break; sleep 1; done
 if listening 9877; then
   echo "Sweet Home 3D is running on $screen; MCP on 127.0.0.1:9877"
