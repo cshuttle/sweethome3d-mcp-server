@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Start Sweet Home 3D with the MCP plugin (listening on 127.0.0.1:9877).
+# On the X display when one is reachable (an X tunnel), else on a virtual screen,
+# so an agent can use it with nobody connected. Extra arguments go to the app,
+# e.g. `sh3d /path/to/house.sh3d`.
+set -euo pipefail
+# The Debian launcher takes the first Java it finds, which can be the display-less
+# JDK the plugin build needs; point it at a full runtime.
+for jre in /usr/lib/jvm/java-21-openjdk-amd64 /usr/lib/jvm/default-java; do
+  if [[ -e "$jre/lib/libawt_xawt.so" ]]; then export JAVA_HOME="$jre"; break; fi
+done
+if [[ -n "${DISPLAY:-}" ]] && timeout 3 xdpyinfo >/dev/null 2>&1; then
+  exec sweethome3d "$@"
+fi
+exec xvfb-run -a -s "-screen 0 1920x1080x24" sweethome3d "$@"
