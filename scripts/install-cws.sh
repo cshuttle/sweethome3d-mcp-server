@@ -6,7 +6,8 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-pkgs=(sweethome3d openjdk-17-jdk-headless xvfb x11-utils)
+# default-jre runs the app (it needs AWT); the headless JDK only builds the plugin.
+pkgs=(sweethome3d default-jre openjdk-17-jdk-headless xvfb x11-utils)
 missing=()
 for p in "${pkgs[@]}"; do dpkg -s "$p" >/dev/null 2>&1 || missing+=("$p"); done
 if ((${#missing[@]})); then
@@ -17,7 +18,7 @@ fi
 # ~/.eteks/sweethome3d (not the ~/.sweethome3d the upstream README gives for Linux).
 plugins="$HOME/.eteks/sweethome3d/plugins"
 stamp="$plugins/sh3d-mcp.source"
-source_rev="$(git rev-parse HEAD:src HEAD:pom.xml | tr "\n" " ")$(git diff HEAD -- src pom.xml | sha1sum | cut -c1-12)"
+source_rev="$(git rev-parse HEAD:src HEAD:pom.xml | tr "\n" " ")$({ git diff HEAD -- src pom.xml; git ls-files -o --exclude-standard -s src; git ls-files -o --exclude-standard src | xargs -r sha1sum; } | sha1sum | cut -c1-12)"
 if [[ ! -f "$plugins/sh3d-mcp.sh3p" || "$(cat "$stamp" 2>/dev/null)" != "$source_rev" ]]; then
   bash scripts/setup-dev.sh
   sh ./mvnw -q -DskipTests package  # the tests need a display; run them under xvfb-run
