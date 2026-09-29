@@ -1,15 +1,51 @@
 #!/usr/bin/env bash
-# Start Sweet Home 3D with the MCP plugin (listening on 127.0.0.1:9877).
-# On the X display when one is reachable (an X tunnel), else on a virtual screen,
-# so an agent can use it with nobody connected. Extra arguments go to the app,
-# e.g. `sh3d /path/to/house.sh3d`.
+# Start Sweet Home 3D with the MCP plugin (127.0.0.1:9877) on a lasting virtual screen,
+# display :100, shared over VNC on 127.0.0.1:5900. The owner and an agent then use the
+# same running app, and it keeps running with nobody attached.
+#
+# Connect with any VNC client through SSH. MobaXterm: a VNC session to localhost, port
+# 5900, with "Connect through SSH gateway" set to this host.
+# Set the VNC password once, before the first start: x11vnc -storepasswd ~/.vnc/passwd
+#
+# Running it again starts only what is missing. Extra arguments go to the app when it
+# starts, e.g. `sh3d /path/to/house.sh3d`.
+# ponytail: started by hand, not a service; a systemd user unit if it must survive a reboot.
 set -euo pipefail
+screen=:100
+logs="$HOME/.cache/sh3d"
+mkdir -p "$logs"
+listening() { ss -ltnH "sport = :$1" | grep -q .; }
+
+if ! xdpyinfo -display "$screen" >/dev/null 2>&1; then
+  setsid nohup Xvfb "$screen" -screen 0 1920x1080x24 -nolisten tcp >"$logs/xvfb.log" 2>&1 </dev/null &
+  for _ in $(seq 50); do xdpyinfo -display "$screen" >/dev/null 2>&1 && break; sleep 0.1; done
+  # One app, always full screen: no title bars to drag, nothing hidden off screen.
+  DISPLAY="$screen" setsid nohup matchbox-window-manager -use_titlebar no >"$logs/wm.log" 2>&1 </dev/null &
+fi
+
+if ! listening 5900; then
+  if [[ -f "$HOME/.vnc/passwd" ]]; then
+    x11vnc -display "$screen" -localhost -noipv6 -rfbport 5900 -rfbauth "$HOME/.vnc/passwd" \
+      -forever -shared -bg -q -o "$logs/x11vnc.log"
+  else
+    echo "no VNC password yet, so no VNC: run  x11vnc -storepasswd ~/.vnc/passwd  then sh3d again" >&2
+  fi
+fi
+
+if listening 9877; then
+  echo "Sweet Home 3D is already running on $screen"
+  exit 0
+fi
 # The Debian launcher takes the first Java it finds, which can be the display-less
 # JDK the plugin build needs; point it at a full runtime.
 for jre in /usr/lib/jvm/java-21-openjdk-amd64 /usr/lib/jvm/default-java; do
   if [[ -e "$jre/lib/libawt_xawt.so" ]]; then export JAVA_HOME="$jre"; break; fi
 done
-if [[ -n "${DISPLAY:-}" ]] && timeout 3 xdpyinfo >/dev/null 2>&1; then
-  exec sweethome3d "$@"
+DISPLAY="$screen" setsid nohup sweethome3d "$@" >"$logs/app.log" 2>&1 </dev/null &
+for _ in $(seq 60); do listening 9877 && break; sleep 1; done
+if listening 9877; then
+  echo "Sweet Home 3D is running on $screen; MCP on 127.0.0.1:9877"
+else
+  echo "Sweet Home 3D did not start its MCP plugin; see $logs/app.log" >&2
+  exit 1
 fi
-exec xvfb-run -a -s "-screen 0 1920x1080x24" sweethome3d "$@"
