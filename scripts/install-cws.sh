@@ -7,7 +7,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 # default-jre runs the app (it needs AWT); the headless JDK only builds the plugin.
-pkgs=(sweethome3d default-jre openjdk-17-jdk-headless xvfb x11-utils)
+pkgs=(sweethome3d default-jre openjdk-17-jdk-headless xvfb x11-utils x11vnc matchbox-window-manager)
 missing=()
 for p in "${pkgs[@]}"; do dpkg -s "$p" >/dev/null 2>&1 || missing+=("$p"); done
 if ((${#missing[@]})); then
@@ -33,4 +33,5 @@ if ! cmp -s scripts/sh3d "$HOME/.local/bin/sh3d"; then
   install -m 755 scripts/sh3d "$HOME/.local/bin/sh3d"
   echo "installed launcher ~/.local/bin/sh3d"
 fi
+[[ -f "$HOME/.vnc/passwd" ]] || echo "next: set a VNC password once with  x11vnc -storepasswd ~/.vnc/passwd"
 echo "ok: Sweet Home 3D, plugin and launcher are in place"
