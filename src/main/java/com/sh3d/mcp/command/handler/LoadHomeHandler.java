@@ -4,6 +4,7 @@ import com.sh3d.mcp.command.CommandDescriptor;
 
 import com.eteks.sweethome3d.io.HomeFileRecorder;
 import com.eteks.sweethome3d.model.Compass;
+import com.eteks.sweethome3d.model.Elevatable;
 import com.eteks.sweethome3d.model.Home;
 import com.eteks.sweethome3d.model.HomeEnvironment;
 import com.eteks.sweethome3d.model.Level;
@@ -64,7 +65,9 @@ public class LoadHomeHandler implements CommandHandler, CommandDescriptor {
         // 4. Чтение файла вне EDT
         Home loaded;
         try {
-            HomeFileRecorder recorder = new HomeFileRecorder();
+            // preferXmlEntry: read Home.xml when the file has one, so a file written without
+            // Java (cshuttle/homeassistant#73) opens too.
+            HomeFileRecorder recorder = new HomeFileRecorder(0, false, null, false, true);
             loaded = recorder.readHome(normalizedPath);
         } catch (RecorderException e) {
             LOG.log(java.util.logging.Level.WARNING, "Load failed", e);
@@ -151,6 +154,10 @@ public class LoadHomeHandler implements CommandHandler, CommandDescriptor {
                           java.util.function.Consumer<T> adder) {
         int count = 0;
         for (T item : items) {
+            // Home.addRoom/addWall/... put the item on the selected level; keep its own.
+            if (item instanceof Elevatable && ((Elevatable) item).getLevel() != null) {
+                home.setSelectedLevel(((Elevatable) item).getLevel());
+            }
             adder.accept(item);
             count++;
         }
