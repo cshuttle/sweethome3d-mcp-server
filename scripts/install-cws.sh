@@ -28,6 +28,23 @@ if [[ ! -f "$plugins/sh3d-mcp.sh3p" || "$(cat "$stamp" 2>/dev/null)" != "$source
   echo "installed plugin built from $source_rev"
 fi
 
+# Third-party plug-ins the owner uses over VNC (GPL; cshuttle/homeassistant#76).
+# Pinned by checksum: a changed upload fails the install instead of loading new code.
+extras=(
+  "AdvancedEditing.sh3p|https://sourceforge.net/p/sweethome3d/plug-ins/_discuss/thread/5e6557c2/fef8/attachment/AdvancedEditing.sh3p|d7eb557e735a264c1c9b84c09e02a5587d3b8d5ffdc7c347df43b28a3ffb2915"
+  "AutoDimensioning.sh3p|https://sourceforge.net/p/sweethome3d/plug-ins/_discuss/thread/015d788700/98fc/attachment/AutoDimensioning.sh3p|8d3e4045a535d760c2aeb51554b72636e1d5dff4323237f13f95fbc0cea074e8"
+)
+for extra in "${extras[@]}"; do
+  IFS='|' read -r file url sum <<<"$extra"
+  if ! echo "$sum  $plugins/$file" | sha256sum --check --quiet --status 2>/dev/null; then
+    mkdir -p "$plugins"
+    curl -fsSL -o "$plugins/.$file" "$url"
+    echo "$sum  $plugins/.$file" | sha256sum --check --quiet
+    mv "$plugins/.$file" "$plugins/$file"
+    echo "installed $file"
+  fi
+done
+
 mkdir -p "$HOME/.local/bin"
 if ! cmp -s scripts/sh3d "$HOME/.local/bin/sh3d"; then
   install -m 755 scripts/sh3d "$HOME/.local/bin/sh3d"
