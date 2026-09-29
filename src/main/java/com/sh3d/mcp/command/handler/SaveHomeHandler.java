@@ -65,7 +65,9 @@ public class SaveHomeHandler implements CommandHandler, CommandDescriptor {
 
         // 5. Записываем файл вне EDT
         try {
-            HomeFileRecorder recorder = new HomeFileRecorder(COMPRESSION_LEVEL, false);
+            // preferXmlEntry: also write Home.xml, as the app's own Save does, so tools that
+            // read the file without Java (cshuttle/homeassistant#73) see the same home.
+            HomeFileRecorder recorder = new HomeFileRecorder(COMPRESSION_LEVEL, false, null, false, true);
             recorder.writeHome(clonedHome, normalizedPath);
 
             // 6. Обновляем состояние оригинального Home на EDT

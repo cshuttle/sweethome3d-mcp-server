@@ -131,6 +131,27 @@ class LoadHomeHandlerTest {
     // --- clearAll tests ---
 
     @Test
+    void testAddAllKeepsEachItemOnItsOwnLevel() {
+        // Home.addRoom puts a room on the selected level; a loaded room must keep its own.
+        Home home = new Home();
+        Level ground = new Level("Ground", 0, 12, 250);
+        Level upstairs = new Level("Upstairs", 262, 12, 250);
+        home.addLevel(ground);
+        home.addLevel(upstairs);
+        home.setSelectedLevel(upstairs);
+        Room kitchen = new Room(new float[][] {{0, 0}, {100, 0}, {100, 100}});
+        kitchen.setLevel(ground);
+        Wall wall = new Wall(0, 0, 100, 0, 10, 250);
+        wall.setLevel(ground);
+
+        LoadHomeHandler.addAll(home, List.of(kitchen), home::addRoom);
+        LoadHomeHandler.addAll(home, List.of(wall), home::addWall);
+
+        assertSame(ground, kitchen.getLevel());
+        assertSame(ground, wall.getLevel());
+    }
+
+    @Test
     void testClearAllRemovesWalls() {
         Home home = new Home();
         home.addWall(new Wall(0, 0, 500, 0, 10, 250));
