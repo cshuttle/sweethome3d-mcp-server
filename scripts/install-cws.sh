@@ -17,7 +17,7 @@ fi
 # ~/.eteks/sweethome3d (not the ~/.sweethome3d the upstream README gives for Linux).
 plugins="$HOME/.eteks/sweethome3d/plugins"
 stamp="$plugins/sh3d-mcp.source"
-source_rev="$(git rev-parse HEAD)$(git diff --quiet HEAD -- src pom.xml || echo -dirty)"
+source_rev="$(git rev-parse HEAD:src HEAD:pom.xml | tr "\n" " ")$(git diff --quiet HEAD -- src pom.xml || echo dirty)"
 if [[ ! -f "$plugins/sh3d-mcp.sh3p" || "$(cat "$stamp" 2>/dev/null)" != "$source_rev" ]]; then
   bash scripts/setup-dev.sh
   sh ./mvnw -q -DskipTests package  # the tests need a display; run them under xvfb-run
