@@ -146,9 +146,11 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.2.5</version>
                 <configuration>
-                    <!-- @{argLine} is late-bound by JaCoCo prepare-agent; JDK 24 flags follow -->
+                    <!-- @{argLine} is late-bound by JaCoCo prepare-agent; JDK 24 flags follow.
+                         j3d.rend=noop: Java3D's no-op pipeline, so tests can load models (JOGL is not on the test classpath) -->
                     <argLine>
                         @{argLine}
+                        -Dj3d.rend=noop
                         -XX:+EnableDynamicAgentLoading
                         --add-opens java.base/java.lang=ALL-UNNAMED
                         --add-opens java.base/java.lang.reflect=ALL-UNNAMED
