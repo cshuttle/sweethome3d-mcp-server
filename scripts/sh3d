@@ -9,7 +9,7 @@
 #
 # Running it again starts only what is missing. Extra arguments go to the app when it
 # starts, e.g. `sh3d /path/to/house.sh3d`.
-# ponytail: started by hand, not a service; a systemd user unit if it must survive a reboot.
+# At boot it is started by the user unit sh3d.service (installed by install-cws.sh).
 set -euo pipefail
 screen=:100
 logs="$HOME/.cache/sh3d"
