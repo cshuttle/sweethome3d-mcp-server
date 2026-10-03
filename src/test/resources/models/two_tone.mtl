@@ -1,0 +1,6 @@
+newmtl paint
+Kd 0.8 0.1 0.1
+
+newmtl label
+Kd 1 1 1
+map_Kd two_tone.png

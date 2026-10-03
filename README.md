@@ -128,6 +128,8 @@ For Claude Code, create `.mcp.json` in your project directory:
 | `list_furniture_catalog` | Browse catalog; filter by name, category, or type |
 | `place_furniture` | Place a catalog item in the scene |
 | `modify_furniture` | Move, rotate, resize, recolor furniture by ID |
+| `import_furniture` | Import a local OBJ (with its MTL and textures), DAE, 3DS or ZIP as a new piece; the model is copied into the home like the Import furniture wizard does, under a new content URL each time |
+| `replace_model` | Swap an existing piece's 3D model for a local model file in place, keeping its size or taking the new model's proportions |
 | `delete_furniture` | Delete furniture by ID |
 | `duplicate_objects` | Duplicate one or more objects by ID |
 | `group_furniture` | Group multiple pieces into one object |

@@ -144,6 +144,9 @@ com.sh3d.mcp/
 |   |-- BatchCommandsHandler.java
 |   |-- CreateWallsHandler.java
 |   |-- PlaceFurnitureHandler.java
+|   |-- ImportFurnitureHandler.java # Импорт OBJ/DAE/3DS/ZIP как мебели (через ModelImporter)
+|   |-- ReplaceModelHandler.java   # Замена 3D-модели мебели на месте
+|   |-- ModelImporter.java         # Копирует модель в дом, как мастер Import furniture (ModelManager + OBJWriter)
 |   |-- GetStateHandler.java
 |   |-- RenderPhotoHandler.java
 |   |-- GenerateShapeHandler.java  # Произвольные 3D-фигуры (делегирует в *ShapeGenerator)
@@ -418,6 +421,8 @@ CommandRegistry (42 команды)
   |-- "get_state"               --> GetStateHandler
   |-- "create_walls"            --> CreateWallsHandler
   |-- "place_furniture"         --> PlaceFurnitureHandler
+  |-- "import_furniture"        --> ImportFurnitureHandler
+  |-- "replace_model"           --> ReplaceModelHandler
   |-- "render_photo"            --> RenderPhotoHandler
   |-- "batch_commands"          --> BatchCommandsHandler
   |-- "generate_shape"          --> GenerateShapeHandler
