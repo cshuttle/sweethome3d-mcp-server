@@ -743,7 +743,8 @@ public class RenderPhotoHandler implements CommandHandler, CommandDescriptor {
                 .number("yaw", "Camera horizontal rotation in degrees (standard mode only)")
                 .number("pitch",
                         "Camera vertical tilt in degrees. For overhead mode: bird's eye angle "
-                                + "(default 30, range 0-90). For standard mode: negative = looking down.")
+                                + "(default 30, range 0-90). For standard mode: positive = looking down, "
+                                + "the same convention as set_camera.")
                 .numberWithDefault("fov", "Camera field of view in degrees", 63)
                 .build();
     }

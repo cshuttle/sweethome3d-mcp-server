@@ -1,0 +1,17 @@
+[Unit]
+Description=Sweet Home 3D with the MCP plugin (127.0.0.1:9877) on Xvfb :100, VNC on 127.0.0.1:5900
+Documentation=https://github.com/cshuttle/sweethome3d-mcp-server
+
+[Service]
+# The launcher starts Xvfb, the window manager, x11vnc and the app detached and exits, so the
+# unit is a oneshot that stays active; the processes stay in its cgroup and stop with it.
+Type=oneshot
+RemainAfterExit=yes
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+# The live house file is on the Home Assistant CIFS mount; give the mount up to 2 minutes.
+ExecStartPre=/bin/sh -c 'f=%h/homeassistant/homeassistant_config/floorplan/house.sh3d; for i in $(seq 120); do [ -f "$f" ] && exit 0; sleep 1; done; echo "house.sh3d not found, starting empty" >&2'
+ExecStart=/bin/sh -c 'f=%h/homeassistant/homeassistant_config/floorplan/house.sh3d; if [ -f "$f" ]; then exec %h/.local/bin/sh3d "$f"; else exec %h/.local/bin/sh3d; fi'
+TimeoutStartSec=300
+
+[Install]
+WantedBy=default.target

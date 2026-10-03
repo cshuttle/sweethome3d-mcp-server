@@ -93,5 +93,15 @@ if ! cmp -s scripts/sh3d "$HOME/.local/bin/sh3d"; then
   install -m 755 scripts/sh3d "$HOME/.local/bin/sh3d"
   echo "installed launcher ~/.local/bin/sh3d"
 fi
+# Start the app at login and after a reboot, with the live house open (sh3d.service; the
+# launcher itself skips whatever is already running).
+unit="$HOME/.config/systemd/user/sh3d.service"
+if ! cmp -s scripts/sh3d.service "$unit"; then
+  mkdir -p "$(dirname "$unit")"
+  install -m 644 scripts/sh3d.service "$unit"
+  systemctl --user daemon-reload
+  systemctl --user enable sh3d.service
+  echo "installed and enabled sh3d.service"
+fi
 [[ -f "$HOME/.vnc/passwd" ]] || echo "next: set a VNC password once with  x11vnc -storepasswd ~/.vnc/passwd"
 echo "ok: Sweet Home 3D, plugin and launcher are in place"
