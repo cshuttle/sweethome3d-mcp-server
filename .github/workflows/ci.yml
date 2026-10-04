@@ -11,10 +11,13 @@ jobs:
   # ── Test ──────────────────────────────────────────────────────────────────
   test:
     name: Test (JDK ${{ matrix.java }})
+    # GitHub-hosted on purpose: this public fork must not run outside PRs on the owner's in-cluster
+    # (ARC) runners, and hosted minutes are free for public repos.
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        java: [ '11', '17' ]
+        # 21 = the runtime Sweet Home 3D 7.5 bundles, i.e. what the plugin actually runs on.
+        java: [ '11', '17', '21' ]
 
     steps:
       - uses: actions/checkout@v4
