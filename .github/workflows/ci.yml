@@ -55,15 +55,6 @@ jobs:
       - name: Build and test
         run: xvfb-run --auto-servernum mvn verify --no-transfer-progress
 
-      # Upload coverage only once (JDK 11 run)
-      - name: Upload coverage to Codecov
-        if: matrix.java == '11'
-        uses: codecov/codecov-action@v4
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: target/site/jacoco/jacoco.xml
-          fail_ci_if_error: false
-
   # ── Release ───────────────────────────────────────────────────────────────
   release:
     name: Release
