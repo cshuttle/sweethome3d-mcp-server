@@ -177,6 +177,7 @@ For Claude Code, create `.mcp.json` in your project directory:
 | `add_level` | Add a new level (floor/storey) |
 | `list_levels` | List all levels; shows which is currently selected |
 | `set_selected_level` | Switch the active level |
+| `modify_level` | Change a level's name, elevation, height or floor thickness |
 | `delete_level` | Delete a level and all its objects |
 
 ### Rendering & Export

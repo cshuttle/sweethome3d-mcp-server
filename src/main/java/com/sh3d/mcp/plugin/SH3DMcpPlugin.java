@@ -47,6 +47,7 @@ import com.sh3d.mcp.command.handler.SaveHomeHandler;
 import com.sh3d.mcp.command.handler.SetCameraHandler;
 import com.sh3d.mcp.command.handler.SetEnvironmentHandler;
 import com.sh3d.mcp.command.handler.SetSelectedLevelHandler;
+import com.sh3d.mcp.command.handler.ModifyLevelHandler;
 import com.sh3d.mcp.command.handler.StoreCameraHandler;
 import com.sh3d.mcp.command.handler.UngroupFurnitureHandler;
 import com.sh3d.mcp.config.PluginConfig;
@@ -240,6 +241,7 @@ public class SH3DMcpPlugin extends Plugin {
         registry.register("set_camera", new SetCameraHandler());
         registry.register("set_environment", new SetEnvironmentHandler());
         registry.register("set_selected_level", new SetSelectedLevelHandler());
+        registry.register("modify_level", new ModifyLevelHandler());
         registry.register("store_camera", new StoreCameraHandler());
         registry.register("get_cameras", new GetCamerasHandler());
         registry.register("group_furniture", new GroupFurnitureHandler());

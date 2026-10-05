@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `modify_level` changes an existing level's name, elevation, wall height or floor thickness in place, by id (only the given properties change). house-model used it to set the Upstairs floor to the blueprints' 25.24 cm joist depth.
 - `import_furniture` — imports a local 3D model (OBJ with its MTL and `map_Kd` textures beside it, DAE, 3DS, LWS, or a ZIP holding one) as a new piece at a given position, size, angle and level. The model is copied into the home the way Sweet Home 3D's Import furniture wizard does (loaded with `ModelManager`, rewritten with `OBJWriter` into a temporary ZIP), so it is saved inside the .sh3d with its materials and textures. Omitted dimensions use the model's natural size or keep its proportions; `modelRotation` takes `yUp` (default), `zUp` or a 3x3 matrix. glTF/GLB are not supported: Sweet Home 3D 7.5 has no loader for them.
 - `replace_model` — swaps the model of an existing piece in place, keeping its size, position and angle (`keepSize`, default) or scaling the new model's proportions to its current width.
 - Both tools give every model a content URL never used before, so a re-exported file with the same name cannot render a shape Sweet Home 3D cached earlier.
