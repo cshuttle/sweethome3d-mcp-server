@@ -102,6 +102,9 @@ public final class PipeShapeGenerator implements ShapeGenerator {
         boolean fullCircle = (arcAngle >= 360f);
         float halfH = height / 2f;
 
+        // Angles run from +X towards +Z, which is clockwise seen from above (+Y); each
+        // triangle below is ordered counter-clockwise seen from outside the solid, since
+        // Sweet Home 3D culls back faces.
         List<Point3f> coords = new ArrayList<>();
 
         for (int i = 0; i < divisions; i++) {
@@ -120,39 +123,39 @@ public final class PipeShapeGenerator implements ShapeGenerator {
 
             // Outer wall quad (2 triangles, outward-facing normals)
             coords.add(new Point3f(outerX0, -halfH, outerZ0));
-            coords.add(new Point3f(outerX1, -halfH, outerZ1));
             coords.add(new Point3f(outerX1, halfH, outerZ1));
+            coords.add(new Point3f(outerX1, -halfH, outerZ1));
 
             coords.add(new Point3f(outerX0, -halfH, outerZ0));
-            coords.add(new Point3f(outerX1, halfH, outerZ1));
             coords.add(new Point3f(outerX0, halfH, outerZ0));
+            coords.add(new Point3f(outerX1, halfH, outerZ1));
 
-            // Inner wall quad (reversed winding for inward-facing normals)
+            // Inner wall quad (normals towards the axis, i.e. out of the solid)
             coords.add(new Point3f(innerX0, -halfH, innerZ0));
+            coords.add(new Point3f(innerX1, halfH, innerZ1));
             coords.add(new Point3f(innerX0, halfH, innerZ0));
-            coords.add(new Point3f(innerX1, halfH, innerZ1));
 
             coords.add(new Point3f(innerX0, -halfH, innerZ0));
-            coords.add(new Point3f(innerX1, halfH, innerZ1));
             coords.add(new Point3f(innerX1, -halfH, innerZ1));
+            coords.add(new Point3f(innerX1, halfH, innerZ1));
 
             // Top cap ring quad (Y = +halfH)
             coords.add(new Point3f(outerX0, halfH, outerZ0));
-            coords.add(new Point3f(outerX1, halfH, outerZ1));
             coords.add(new Point3f(innerX1, halfH, innerZ1));
+            coords.add(new Point3f(outerX1, halfH, outerZ1));
 
             coords.add(new Point3f(outerX0, halfH, outerZ0));
-            coords.add(new Point3f(innerX1, halfH, innerZ1));
             coords.add(new Point3f(innerX0, halfH, innerZ0));
+            coords.add(new Point3f(innerX1, halfH, innerZ1));
 
             // Bottom cap ring quad (Y = -halfH, reversed winding)
             coords.add(new Point3f(outerX0, -halfH, outerZ0));
-            coords.add(new Point3f(innerX0, -halfH, innerZ0));
             coords.add(new Point3f(innerX1, -halfH, innerZ1));
+            coords.add(new Point3f(innerX0, -halfH, innerZ0));
 
             coords.add(new Point3f(outerX0, -halfH, outerZ0));
-            coords.add(new Point3f(innerX1, -halfH, innerZ1));
             coords.add(new Point3f(outerX1, -halfH, outerZ1));
+            coords.add(new Point3f(innerX1, -halfH, innerZ1));
         }
 
         // Side caps for partial arc (arcAngle < 360)
@@ -164,12 +167,12 @@ public final class PipeShapeGenerator implements ShapeGenerator {
             float siZ = 0f;
 
             coords.add(new Point3f(soX, -halfH, soZ));
-            coords.add(new Point3f(soX, halfH, soZ));
             coords.add(new Point3f(siX, halfH, siZ));
+            coords.add(new Point3f(soX, halfH, soZ));
 
             coords.add(new Point3f(soX, -halfH, soZ));
-            coords.add(new Point3f(siX, halfH, siZ));
             coords.add(new Point3f(siX, -halfH, siZ));
+            coords.add(new Point3f(siX, halfH, siZ));
 
             // End side cap (at angle = arcAngle)
             float eoX = outerRadius * (float) Math.cos(arcRad);
@@ -178,12 +181,12 @@ public final class PipeShapeGenerator implements ShapeGenerator {
             float eiZ = innerRadius * (float) Math.sin(arcRad);
 
             coords.add(new Point3f(eoX, -halfH, eoZ));
-            coords.add(new Point3f(eiX, halfH, eiZ));
             coords.add(new Point3f(eoX, halfH, eoZ));
+            coords.add(new Point3f(eiX, halfH, eiZ));
 
             coords.add(new Point3f(eoX, -halfH, eoZ));
-            coords.add(new Point3f(eiX, -halfH, eiZ));
             coords.add(new Point3f(eiX, halfH, eiZ));
+            coords.add(new Point3f(eiX, -halfH, eiZ));
         }
 
         Point3f[] coordArray = coords.toArray(new Point3f[0]);

@@ -117,7 +117,7 @@ For Claude Code, create `.mcp.json` in your project directory:
 | Command | Description |
 |---------|-------------|
 | `create_room_polygon` | Room from an array of polygon points |
-| `modify_room` | Change name, floor/ceiling color, visibility |
+| `modify_room` | Change name, floor/ceiling color, visibility, or replace the polygon (`points`) in place |
 | `delete_room` | Delete room by ID |
 
 ### Furniture

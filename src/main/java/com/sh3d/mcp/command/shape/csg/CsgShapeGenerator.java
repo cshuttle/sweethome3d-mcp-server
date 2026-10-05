@@ -245,10 +245,10 @@ public final class CsgShapeGenerator implements ShapeGenerator {
 
                 List<CsgVertex> verts = new ArrayList<>();
                 if (i == 0) {
-                    // Top cap triangle
+                    // Top cap triangle (pole, then the ring below, CCW from outside)
                     verts.add(v0);
-                    verts.add(v3);
                     verts.add(v2);
+                    verts.add(v3);
                 } else if (i == stacks - 1) {
                     // Bottom cap triangle
                     verts.add(v0);
@@ -289,25 +289,26 @@ public final class CsgShapeGenerator implements ShapeGenerator {
             float x2 = radius * c2 + ox, z2 = radius * s2 + oz;
             float yTop = hh + oy, yBot = -hh + oy;
 
-            // Side quad
+            // Side quad. Angles run from +X towards +Z, clockwise seen from above (+Y),
+            // so CCW from outside is bottom(a1), top(a1), top(a2), bottom(a2).
             polys.add(quad(
                     v(x1, yBot, z1, c1, 0, s1),
-                    v(x2, yBot, z2, c2, 0, s2),
+                    v(x1, yTop, z1, c1, 0, s1),
                     v(x2, yTop, z2, c2, 0, s2),
-                    v(x1, yTop, z1, c1, 0, s1)));
+                    v(x2, yBot, z2, c2, 0, s2)));
 
             // Top cap triangle
             List<CsgVertex> topVerts = new ArrayList<>();
             topVerts.add(v(ox, yTop, oz, 0, 1, 0));
-            topVerts.add(v(x1, yTop, z1, 0, 1, 0));
             topVerts.add(v(x2, yTop, z2, 0, 1, 0));
+            topVerts.add(v(x1, yTop, z1, 0, 1, 0));
             polys.add(new CsgPolygon(topVerts));
 
             // Bottom cap triangle
             List<CsgVertex> botVerts = new ArrayList<>();
             botVerts.add(v(ox, yBot, oz, 0, -1, 0));
-            botVerts.add(v(x2, yBot, z2, 0, -1, 0));
             botVerts.add(v(x1, yBot, z1, 0, -1, 0));
+            botVerts.add(v(x2, yBot, z2, 0, -1, 0));
             polys.add(new CsgPolygon(botVerts));
         }
         return polys;
@@ -341,16 +342,17 @@ public final class CsgShapeGenerator implements ShapeGenerator {
                 CsgVertex v2 = sphereVertex(radius, theta2, phi2, ox, oy, oz);
                 CsgVertex v3 = sphereVertex(radius, theta2, phi1, ox, oy, oz);
 
+                // CCW from outside (phi runs clockwise seen from above), as in generateSphere
                 List<CsgVertex> verts = new ArrayList<>();
                 if (i == 0) {
                     verts.add(v0);
-                    verts.add(v3);
                     verts.add(v2);
+                    verts.add(v3);
                 } else {
                     verts.add(v0);
-                    verts.add(v3);
-                    verts.add(v2);
                     verts.add(v1);
+                    verts.add(v2);
+                    verts.add(v3);
                 }
                 if (verts.size() >= 3) {
                     polys.add(new CsgPolygon(verts));
@@ -372,8 +374,8 @@ public final class CsgShapeGenerator implements ShapeGenerator {
 
                 List<CsgVertex> verts = new ArrayList<>();
                 verts.add(v(ox, capY, oz, 0, -1, 0));
-                verts.add(v(x2, capY, z2, 0, -1, 0));
                 verts.add(v(x1, capY, z1, 0, -1, 0));
+                verts.add(v(x2, capY, z2, 0, -1, 0));
                 polys.add(new CsgPolygon(verts));
             }
         }

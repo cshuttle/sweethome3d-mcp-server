@@ -103,14 +103,15 @@ public final class TorusShapeGenerator implements ShapeGenerator {
                 Point3f p11 = torusPoint(majorRadius, minorRadius, u2, v2);
                 Point3f p01 = torusPoint(majorRadius, minorRadius, u1, v2);
 
-                // Quad as 2 triangles
+                // Quad as 2 triangles, CCW seen from outside the tube (Sweet Home 3D
+                // culls back faces, so the normal must point away from the tube centre)
                 coords.add(p00);
-                coords.add(p10);
                 coords.add(p11);
+                coords.add(p10);
 
                 coords.add(p00);
-                coords.add(p11);
                 coords.add(p01);
+                coords.add(p11);
             }
         }
 
