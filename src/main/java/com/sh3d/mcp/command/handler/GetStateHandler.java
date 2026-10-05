@@ -138,7 +138,8 @@ public class GetStateHandler implements CommandHandler, CommandDescriptor {
         return list;
     }
 
-    private Map<String, Object> buildFurniturePiece(HomePieceOfFurniture piece) {
+    /** One piece as get_state reports it (groups carry their pieces in groupItems); query_state reuses it. */
+    static Map<String, Object> buildFurniturePiece(HomePieceOfFurniture piece) {
         Map<String, Object> item = new LinkedHashMap<>();
         item.put("id", piece.getId());
         item.put("name", piece.getName());
@@ -183,18 +184,23 @@ public class GetStateHandler implements CommandHandler, CommandDescriptor {
     private List<Object> buildLabels(Collection<Label> labels) {
         List<Object> list = new ArrayList<>();
         for (Label label : labels) {
-            Map<String, Object> item = new LinkedHashMap<>();
-            item.put("id", label.getId());
-            item.put("text", label.getText());
-            item.put("x", round2(label.getX()));
-            item.put("y", round2(label.getY()));
-            item.put("angle", round2(Math.toDegrees(label.getAngle())));
-            item.put("color", colorToHex(label.getColor()));
-            Level level = label.getLevel();
-            item.put("level", level != null ? level.getName() : null);
-            list.add(item);
+            list.add(buildLabelInfo(label));
         }
         return list;
+    }
+
+    /** One label as get_state reports it; query_state reuses it. */
+    static Map<String, Object> buildLabelInfo(Label label) {
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("id", label.getId());
+        item.put("text", label.getText());
+        item.put("x", round2(label.getX()));
+        item.put("y", round2(label.getY()));
+        item.put("angle", round2(Math.toDegrees(label.getAngle())));
+        item.put("color", colorToHex(label.getColor()));
+        Level level = label.getLevel();
+        item.put("level", level != null ? level.getName() : null);
+        return item;
     }
 
     // --- Dimension line builders ---
@@ -230,17 +236,22 @@ public class GetStateHandler implements CommandHandler, CommandDescriptor {
     private List<Object> buildLevels(List<Level> levels, Level selectedLevel) {
         List<Object> list = new ArrayList<>();
         for (Level level : levels) {
-            Map<String, Object> item = new LinkedHashMap<>();
-            item.put("id", level.getId());
-            item.put("name", level.getName());
-            item.put("elevation", round2(level.getElevation()));
-            item.put("height", round2(level.getHeight()));
-            item.put("floorThickness", round2(level.getFloorThickness()));
-            item.put("viewable", level.isViewable());
-            item.put("selected", level.equals(selectedLevel));
-            list.add(item);
+            list.add(buildLevelInfo(level, selectedLevel));
         }
         return list;
+    }
+
+    /** One level as get_state reports it; query_state reuses it. */
+    static Map<String, Object> buildLevelInfo(Level level, Level selectedLevel) {
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("id", level.getId());
+        item.put("name", level.getName());
+        item.put("elevation", round2(level.getElevation()));
+        item.put("height", round2(level.getHeight()));
+        item.put("floorThickness", round2(level.getFloorThickness()));
+        item.put("viewable", level.isViewable());
+        item.put("selected", level.equals(selectedLevel));
+        return item;
     }
 
     // --- Environment builder ---

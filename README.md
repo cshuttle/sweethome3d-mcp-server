@@ -61,6 +61,29 @@ cannot start under that build.
 version" / installer from [sweethome3d.com](https://www.sweethome3d.com/)
 instead of the Mac App Store version.
 
+### Restarting Sweet Home 3D on Windows from WSL (no `[Recovered]` home)
+
+Killing Sweet Home 3D leaves its auto-save in the `recovery` folder, and the next start reopens it as
+a `[Recovered]` home. [`scripts/sh3d-win-restart.sh`](scripts/sh3d-win-restart.sh) restarts the
+Windows app from WSL without that, optionally installing a new plugin build on the way:
+
+```bash
+scripts/sh3d-win-restart.sh --dry-run --install target/sh3d-mcp-plugin-1.1.0.sh3p   # print the plan
+scripts/sh3d-win-restart.sh --install target/sh3d-mcp-plugin-1.1.0.sh3p             # do it
+```
+
+1. Lists the Sweet Home 3D windows and **refuses** (exit 2) when a title starts with `* ` — unsaved
+   changes, which includes every `[Recovered]` home. Save first (`save_home`, or Ctrl+S).
+2. Closes every home window gracefully (`WM_CLOSE`, what `CloseMainWindow` and the X button send) and
+   waits for `javaw` to exit. It never kills the app; if a dialog keeps it open it stops (exit 3).
+3. Deletes stale `*.recovered` files from `%APPDATA%\eTeks\Sweet Home 3D\recovery` (the folder
+   Sweet Home 3D 7.5's `AutoRecoveryManager` uses; override with `SH3D_APP_DIR`).
+4. With `--install`, backs up `plugins\sh3d-mcp.sh3p` to `plugins-backup\sh3d-mcp-<timestamp>.sh3p`
+   — outside `plugins\`, because Sweet Home 3D tries to load every file in that folder — and copies
+   the new `.sh3p` in.
+5. Relaunches with the host's launcher (`SH3D_WIN`, default `~/.local/bin/sh3d-win`; `--file` picks
+   the home) and waits for the MCP port `127.0.0.1:9877`.
+
 ## Claude Configuration
 
 Add to your Claude Desktop `claude_desktop_config.json`:
@@ -93,13 +116,14 @@ For Claude Code, create `.mcp.json` in your project directory:
 
 ## Available Commands
 
-42 commands across 12 categories.
+46 commands across 12 categories.
 
 ### Scene
 
 | Command | Description |
 |---------|-------------|
 | `get_state` | Full scene state: walls, furniture, rooms, camera, labels, levels |
+| `query_state` | Only the part of the scene asked for, serialised like `get_state`: filter by `kinds` (walls, rooms, furniture, doors, levels, labels), `level` (id or name), plan `bbox` `[x0,y0,x1,y1]`, `name` (case-insensitive regex), `visible`, keep only `fields`, cap with `limit` per kind |
 | `clear_scene` | Remove all objects from the scene |
 
 ### Walls
@@ -193,7 +217,7 @@ For Claude Code, create `.mcp.json` in your project directory:
 
 | Command | Description |
 |---------|-------------|
-| `save_home` | Save the scene to a `.sh3d` file |
+| `save_home` | Save the scene to a `.sh3d` file. Without `filePath` it saves to the home's file; a home with no name (a `[Recovered]` copy after a forced stop) goes back to the file it was opened from when the plugin knows it, else `filePath` is required |
 | `load_home` | Load a `.sh3d` file, replacing the current scene |
 
 ### Checkpoints (undo timeline)
@@ -250,7 +274,7 @@ The plugin is a single self-contained component with no external runtime depende
 
 - **`plugin`** — Entry point (`SH3DMcpPlugin`), settings dialog
 - **`http`** — Streamable HTTP MCP server (JSON-RPC 2.0, port 9877)
-- **`command`** — 42 command handlers, auto-registered via `CommandRegistry`
+- **`command`** — 46 command handlers, auto-registered via `CommandRegistry`
 - **`bridge`** — Thread-safe Sweet Home 3D API wrapper (`HomeAccessor` via EDT, `CheckpointManager`, `ObjectResolver`)
 - **`protocol`** — Hand-written JSON parser (zero external dependencies)
 - **`config`** — Plugin settings, Claude Desktop auto-configurator
