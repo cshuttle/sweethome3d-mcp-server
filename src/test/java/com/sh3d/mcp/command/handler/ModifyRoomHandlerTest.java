@@ -1,13 +1,17 @@
 package com.sh3d.mcp.command.handler;
 
 import com.eteks.sweethome3d.model.Home;
+import com.eteks.sweethome3d.model.Level;
 import com.eteks.sweethome3d.model.Room;
+import com.sh3d.mcp.bridge.CheckpointManager;
 import com.sh3d.mcp.bridge.HomeAccessor;
 import com.sh3d.mcp.protocol.Request;
 import com.sh3d.mcp.protocol.Response;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -209,6 +213,153 @@ class ModifyRoomHandlerTest {
         assertTrue(resp.getMessage().contains("ceilingShininess"));
     }
 
+    // --- Points (geometry) ---
+
+    @Test
+    void testReplacePointsInPlaceKeepsIdentityAndAppearance() {
+        Level level = new Level("Ground", 0, 12, 250);
+        home.addLevel(level);
+        Room room = addRoom();
+        room.setLevel(level);
+        room.setName("Porch");
+        room.setFloorColor(0x808080);
+        room.setCeilingColor(0xFFFFFF);
+        room.setFloorShininess(0.4f);
+        room.setFloorVisible(true);
+        room.setCeilingVisible(false);
+        room.setAreaVisible(true);
+        String id = room.getId();
+
+        Response resp = handler.execute(
+                makeRequest(id, "points", points(0, 0, 300, 0, 300, 200, 100, 250, 0, 200)), accessor);
+
+        assertTrue(resp.isOk(), () -> resp.getMessage());
+        assertEquals(1, home.getRooms().size());
+        assertSame(room, home.getRooms().get(0));
+        float[][] pts = room.getPoints();
+        assertEquals(5, pts.length);
+        assertEquals(100f, pts[3][0], 0.001f);
+        assertEquals(250f, pts[3][1], 0.001f);
+        assertEquals(id, room.getId());
+        assertSame(level, room.getLevel());
+        assertEquals("Porch", room.getName());
+        assertEquals(0x808080, (int) room.getFloorColor());
+        assertEquals(0xFFFFFF, (int) room.getCeilingColor());
+        assertEquals(0.4f, room.getFloorShininess(), 0.001f);
+        assertTrue(room.isFloorVisible());
+        assertFalse(room.isCeilingVisible());
+        assertTrue(room.isAreaVisible());
+
+        Map<String, Object> data = resp.getData();
+        assertEquals(id, data.get("id"));
+        assertEquals("Ground", data.get("level"));
+        @SuppressWarnings("unchecked")
+        List<Object> respPoints = (List<Object>) data.get("points");
+        assertEquals(5, respPoints.size());
+        assertEquals(67500.0, ((Number) data.get("area")).doubleValue(), 0.5);
+    }
+
+    @Test
+    void testPointsAloneIsAModifiableProperty() {
+        Room room = addRoom();
+
+        Response resp = handler.execute(makeRequest(room.getId(), "points", points(0, 0, 10, 0, 0, 10)), accessor);
+
+        assertTrue(resp.isOk());
+        assertEquals(3, room.getPoints().length);
+    }
+
+    @Test
+    void testPointsWithOtherProperties() {
+        Room room = addRoom();
+
+        Response resp = handler.execute(makeRequest(room.getId(),
+                "points", points(0, 0, 10, 0, 0, 10), "name", "Stoop"), accessor);
+
+        assertTrue(resp.isOk());
+        assertEquals(3, room.getPoints().length);
+        assertEquals("Stoop", room.getName());
+    }
+
+    @Test
+    void testPointsFewerThanThreeRejected() {
+        assertPointsRejected(points(0, 0, 10, 0), "at least 3");
+    }
+
+    @Test
+    void testPointsNotArrayRejected() {
+        assertPointsRejected("0,0 10,0 0,10", "array");
+    }
+
+    @Test
+    void testPointNotObjectRejected() {
+        List<Object> pts = points(0, 0, 10, 0);
+        pts.add(Arrays.asList(0, 10));
+        assertPointsRejected(pts, "index 2");
+    }
+
+    @Test
+    void testPointNonNumericRejected() {
+        List<Object> pts = points(0, 0, 10, 0);
+        Map<String, Object> bad = new LinkedHashMap<>();
+        bad.put("x", "a");
+        bad.put("y", 10);
+        pts.add(bad);
+        assertPointsRejected(pts, "numeric");
+    }
+
+    @Test
+    void testPointMissingCoordinateRejected() {
+        List<Object> pts = points(0, 0, 10, 0);
+        Map<String, Object> bad = new LinkedHashMap<>();
+        bad.put("x", 5);
+        pts.add(bad);
+        assertPointsRejected(pts, "numeric");
+    }
+
+    @Test
+    void testPointNaNRejected() {
+        assertPointsRejected(points(0, 0, Double.NaN, 0, 0, 10), "finite");
+    }
+
+    @Test
+    void testPointInfinityRejected() {
+        assertPointsRejected(points(0, 0, 10, Double.POSITIVE_INFINITY, 0, 10), "finite");
+    }
+
+    @Test
+    void testPointBeyondFloatRangeRejected() {
+        assertPointsRejected(points(0, 0, 1e300, 0, 0, 10), "finite");
+    }
+
+    @Test
+    void testInvalidPointsLeaveOtherPropertiesUntouched() {
+        Room room = addRoom();
+        room.setName("Before");
+
+        Response resp = handler.execute(makeRequest(room.getId(),
+                "points", points(0, 0, 10, 0), "name", "After"), accessor);
+
+        assertTrue(resp.isError());
+        assertEquals("Before", room.getName());
+        assertEquals(4, room.getPoints().length);
+    }
+
+    @Test
+    void testPointsChangeIsUndoneByCheckpointRestore() {
+        Room room = addRoom();
+        CheckpointManager checkpoints = new CheckpointManager();
+        checkpoints.push(home.clone(), "before reshape");
+
+        handler.execute(makeRequest(room.getId(), "points", points(0, 0, 10, 0, 0, 10)), accessor);
+        assertEquals(3, room.getPoints().length);
+
+        Home restored = checkpoints.restoreForce(0).getHome();
+        Room restoredRoom = restored.getRooms().get(0);
+        assertEquals(room.getId(), restoredRoom.getId());
+        assertEquals(4, restoredRoom.getPoints().length);
+    }
+
     // --- ID validation ---
 
     @Test
@@ -334,6 +485,13 @@ class ModifyRoomHandlerTest {
         assertTrue(props.containsKey("ceilingColor"));
         assertTrue(props.containsKey("floorShininess"));
         assertTrue(props.containsKey("ceilingShininess"));
+        assertTrue(props.containsKey("points"));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> pointsProp = (Map<String, Object>) props.get("points");
+        assertEquals("array", pointsProp.get("type"));
+        assertEquals(3, pointsProp.get("minItems"));
+        assertFalse(handler.getDescription().contains("cannot be modified"));
 
         @SuppressWarnings("unchecked")
         List<String> required = (List<String>) schema.get("required");
@@ -342,6 +500,29 @@ class ModifyRoomHandlerTest {
     }
 
     // --- Helpers ---
+
+    private void assertPointsRejected(Object pointsValue, String messageFragment) {
+        Room room = addRoom();
+        float[][] before = room.getPoints();
+
+        Response resp = handler.execute(makeRequest(room.getId(), "points", pointsValue), accessor);
+
+        assertTrue(resp.isError());
+        assertTrue(resp.getMessage().contains(messageFragment),
+                () -> "expected '" + messageFragment + "' in: " + resp.getMessage());
+        assertArrayEquals(before, room.getPoints());
+    }
+
+    private static List<Object> points(double... xy) {
+        List<Object> list = new ArrayList<>();
+        for (int i = 0; i < xy.length; i += 2) {
+            Map<String, Object> p = new LinkedHashMap<>();
+            p.put("x", xy[i]);
+            p.put("y", xy[i + 1]);
+            list.add(p);
+        }
+        return list;
+    }
 
     private Room addRoom() {
         float[][] polygon = {

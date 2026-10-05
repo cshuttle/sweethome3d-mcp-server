@@ -85,31 +85,31 @@ public final class StairsShapeGenerator implements ShapeGenerator {
             // Tread (horizontal top face of this step)
             addQuad(coords,
                     -halfW, yTop, zFront,
-                     halfW, yTop, zFront,
+                    -halfW, yTop, zBack,
                      halfW, yTop, zBack,
-                    -halfW, yTop, zBack);
+                     halfW, yTop, zFront);
 
             // Riser (vertical front face of this step)
             addQuad(coords,
                     -halfW, yBot, zFront,
-                     halfW, yBot, zFront,
+                    -halfW, yTop, zFront,
                      halfW, yTop, zFront,
-                    -halfW, yTop, zFront);
+                     halfW, yBot, zFront);
         }
 
         // Bottom face (y=0 plane, spanning full depth)
         addQuad(coords,
                  halfW, 0, 0,
-                -halfW, 0, 0,
+                 halfW, 0, totalDepth,
                 -halfW, 0, totalDepth,
-                 halfW, 0, totalDepth);
+                -halfW, 0, 0);
 
         // Back face (z=totalDepth plane, spanning full height)
         addQuad(coords,
                  halfW, 0, totalDepth,
-                -halfW, 0, totalDepth,
+                 halfW, totalHeight, totalDepth,
                 -halfW, totalHeight, totalDepth,
-                 halfW, totalHeight, totalDepth);
+                -halfW, 0, totalDepth);
 
         // Side profiles (left at x=-halfW, right at x=halfW)
         // Each side is filled with rectangles: for each step, a vertical strip
@@ -123,16 +123,16 @@ public final class StairsShapeGenerator implements ShapeGenerator {
             // Left side (x=-halfW, normal towards -X): CCW viewed from -X
             addQuad(coords,
                     -halfW, 0, zBack,
-                    -halfW, 0, zFront,
+                    -halfW, yTop, zBack,
                     -halfW, yTop, zFront,
-                    -halfW, yTop, zBack);
+                    -halfW, 0, zFront);
 
             // Right side (x=halfW, normal towards +X): CCW viewed from +X
             addQuad(coords,
                      halfW, 0, zFront,
-                     halfW, 0, zBack,
+                     halfW, yTop, zFront,
                      halfW, yTop, zBack,
-                     halfW, yTop, zFront);
+                     halfW, 0, zBack);
         }
 
         Point3f[] coordArray = coords.toArray(new Point3f[0]);

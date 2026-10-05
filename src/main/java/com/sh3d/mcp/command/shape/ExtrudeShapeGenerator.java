@@ -39,6 +39,8 @@ public final class ExtrudeShapeGenerator implements ShapeGenerator {
         if (polygon == null) {
             return Response.error("Invalid polygon format: each point must be [x, y] with numeric values");
         }
+        // Every face below is wound for this one orientation; see orientPositive.
+        polygon = orientPositive(polygon);
 
         if (!request.getParams().containsKey("height")) {
             return Response.error("Parameter 'height' is required for extrude mode");
@@ -66,6 +68,11 @@ public final class ExtrudeShapeGenerator implements ShapeGenerator {
         // SH3D coordinate system: X right, Y down (plan view)
         // Java3D coordinate system: X right, Y up, Z towards viewer
         // Mapping: SH3D X -> J3D X, SH3D Y -> J3D Z, height -> J3D Y
+        // Sweet Home 3D culls back faces, so every triangle is wound counter-clockwise seen
+        // from outside the solid (right-hand normal pointing out). With the polygon in
+        // positive orientation (clockwise on the Y-down plan, i.e. seen from above), the
+        // bottom cap keeps the input order, the top cap is reversed, and each side quad
+        // runs bottom(i) -> top(i+1) -> bottom(i+1).
         BranchGroup root = new BranchGroup();
         List<Point3f> allCoords = new ArrayList<>();
 
@@ -87,14 +94,14 @@ public final class ExtrudeShapeGenerator implements ShapeGenerator {
             float x0 = polygon[i][0], y0 = polygon[i][1];
             float x1 = polygon[next][0], y1 = polygon[next][1];
 
-            // Two triangles per side quad (in J3D coords)
+            // Two triangles per side quad (in J3D coords), wound outward
             Point3f[] sideCoords = new Point3f[]{
                     new Point3f(x0, 0, y0),
+                    new Point3f(x1, height, y1),
                     new Point3f(x1, 0, y1),
-                    new Point3f(x1, height, y1),
                     new Point3f(x0, 0, y0),
-                    new Point3f(x1, height, y1),
-                    new Point3f(x0, height, y0)
+                    new Point3f(x0, height, y0),
+                    new Point3f(x1, height, y1)
             };
             allCoords.addAll(Arrays.asList(sideCoords));
         }
@@ -120,6 +127,34 @@ public final class ExtrudeShapeGenerator implements ShapeGenerator {
 
         return ShapeGeneratorSupport.exportAndAddToScene(root, name, centerX, centerY, 0f,
                 width2, depth, height, elevation, transparency, colorValue, accessor);
+    }
+
+    /**
+     * Returns the polygon in positive orientation: a positive shoelace sum
+     * (x[i]*y[i+1] - x[i+1]*y[i]) in plan coordinates, which is clockwise on the
+     * Y-down plan and clockwise seen from above in Java3D. A polygon given the other
+     * way round is returned reversed (as a copy); a degenerate one is returned as is.
+     */
+    static float[][] orientPositive(float[][] polygon) {
+        if (signedArea2(polygon) >= 0) {
+            return polygon;
+        }
+        float[][] reversed = new float[polygon.length][];
+        for (int i = 0; i < polygon.length; i++) {
+            reversed[i] = polygon[polygon.length - 1 - i];
+        }
+        return reversed;
+    }
+
+    /** Twice the signed (shoelace) area of the polygon in plan coordinates. */
+    static double signedArea2(float[][] polygon) {
+        double sum = 0;
+        for (int i = 0; i < polygon.length; i++) {
+            float[] a = polygon[i];
+            float[] b = polygon[(i + 1) % polygon.length];
+            sum += (double) a[0] * b[1] - (double) b[0] * a[1];
+        }
+        return sum;
     }
 
     /**

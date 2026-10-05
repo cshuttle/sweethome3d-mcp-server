@@ -20,12 +20,14 @@ import java.util.Map;
 
 /**
  * Обработчик команды "modify_room".
- * Изменяет свойства комнаты по стабильному ID.
+ * Изменяет свойства комнаты по стабильному ID, включая её полигон ("points"):
+ * the polygon is replaced in place with {@link Room#setPoints}, so the room keeps
+ * its id, name, level, textures, colours and visibility flags.
  */
 public class ModifyRoomHandler implements CommandHandler, CommandDescriptor {
 
     private static final List<String> MODIFIABLE_KEYS = Arrays.asList(
-            "name", "floorVisible", "ceilingVisible", "areaVisible",
+            "name", "points", "floorVisible", "ceilingVisible", "areaVisible",
             "floorColor", "ceilingColor",
             "floorShininess", "ceilingShininess"
     );
@@ -41,7 +43,7 @@ public class ModifyRoomHandler implements CommandHandler, CommandDescriptor {
         boolean hasModifiable = MODIFIABLE_KEYS.stream().anyMatch(params::containsKey);
         if (!hasModifiable) {
             return Response.error("No modifiable properties provided. "
-                    + "Supported: name, floorVisible, ceilingVisible, areaVisible, "
+                    + "Supported: name, points, floorVisible, ceilingVisible, areaVisible, "
                     + "floorColor, ceilingColor, floorShininess, ceilingShininess");
         }
 
@@ -55,6 +57,17 @@ public class ModifyRoomHandler implements CommandHandler, CommandDescriptor {
         if (ceilingColorResult != null && ceilingColorResult.hasError()) {
             return Response.error(ceilingColorResult.error);
         }
+
+        // Parse and validate the replacement polygon before EDT
+        float[][] newPoints = null;
+        if (params.containsKey("points")) {
+            try {
+                newPoints = parsePoints(params.get("points"));
+            } catch (IllegalArgumentException e) {
+                return Response.error(e.getMessage());
+            }
+        }
+        final float[][] finalPoints = newPoints;
 
         // Validate shininess before EDT
         String shininessError = ValidationUtil.validateRange(params, 0f, 1f,
@@ -82,6 +95,11 @@ public class ModifyRoomHandler implements CommandHandler, CommandDescriptor {
             // Name
             if (params.containsKey("name")) {
                 room.setName(request.getString("name"));
+            }
+
+            // Geometry (replaced in place; id, level and appearance are kept)
+            if (finalPoints != null) {
+                room.setPoints(finalPoints);
             }
 
             // Visibility
@@ -128,6 +146,43 @@ public class ModifyRoomHandler implements CommandHandler, CommandDescriptor {
         return FormatUtil.buildRoomInfo(room);
     }
 
+    /**
+     * Parses the "points" parameter: an array of at least 3 {x, y} objects with finite
+     * numeric coordinates (cm).
+     *
+     * @throws IllegalArgumentException with a user-facing message if the input is invalid
+     */
+    static float[][] parsePoints(Object pointsObj) {
+        if (!(pointsObj instanceof List)) {
+            throw new IllegalArgumentException("Parameter 'points' must be an array of {x, y} objects");
+        }
+        List<?> pointsList = (List<?>) pointsObj;
+        if (pointsList.size() < 3) {
+            throw new IllegalArgumentException("Parameter 'points' must contain at least 3 points, got " + pointsList.size());
+        }
+        float[][] polygon = new float[pointsList.size()][2];
+        for (int i = 0; i < pointsList.size(); i++) {
+            Object ptObj = pointsList.get(i);
+            if (!(ptObj instanceof Map)) {
+                throw new IllegalArgumentException("Point at index " + i + " must be an object with 'x' and 'y'");
+            }
+            Map<?, ?> pt = (Map<?, ?>) ptObj;
+            Object xVal = pt.get("x");
+            Object yVal = pt.get("y");
+            if (!(xVal instanceof Number) || !(yVal instanceof Number)) {
+                throw new IllegalArgumentException("Point at index " + i + " must have numeric 'x' and 'y'");
+            }
+            float x = ((Number) xVal).floatValue();
+            float y = ((Number) yVal).floatValue();
+            if (!Float.isFinite(x) || !Float.isFinite(y)) {
+                throw new IllegalArgumentException("Point at index " + i + " must have finite 'x' and 'y'");
+            }
+            polygon[i][0] = x;
+            polygon[i][1] = y;
+        }
+        return polygon;
+    }
+
     // --- Descriptor ---
 
     @Override
@@ -136,7 +191,8 @@ public class ModifyRoomHandler implements CommandHandler, CommandDescriptor {
                 + "Only provided properties are changed; omitted ones remain unchanged. "
                 + "Colors are hex strings like '#CCBB99' (beige floor), or null to reset to default. "
                 + "Shininess ranges from 0.0 (matte) to 1.0 (glossy). "
-                + "Room geometry (points) cannot be modified — use delete_room + create_room_polygon instead.";
+                + "'points' replaces the room's polygon in place (at least 3 {x, y} points in cm), "
+                + "keeping its id, name, level, textures, colors and visibility flags.";
     }
 
     @Override
@@ -144,6 +200,15 @@ public class ModifyRoomHandler implements CommandHandler, CommandDescriptor {
         return SchemaBuilder.create()
                 .requiredString("id", "Room ID from get_state")
                 .string("name", "Room name (e.g. 'Kitchen', 'Living Room')")
+                .array("points", SchemaBuilder.arrayDef(
+                        "New polygon vertices in cm, replacing the room's current points. Minimum 3 points. "
+                                + "Example: [{\"x\":0,\"y\":0},{\"x\":500,\"y\":0},{\"x\":500,\"y\":400}]")
+                        .items(SchemaBuilder.create()
+                                .requiredNumber("x", "X coordinate in cm")
+                                .requiredNumber("y", "Y coordinate in cm")
+                                .build())
+                        .minItems(3)
+                        .build())
                 .bool("floorVisible", "Whether floor surface is visible in 3D")
                 .bool("ceilingVisible", "Whether ceiling surface is visible in 3D")
                 .bool("areaVisible", "Whether area label is shown on the plan")

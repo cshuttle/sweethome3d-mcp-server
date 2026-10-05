@@ -83,7 +83,8 @@ public final class HemisphereShapeGenerator implements ShapeGenerator {
         int thetaSteps = Math.max(divisions / 2, 4);
         int phiSteps = divisions;
 
-        // Spherical surface triangles
+        // Spherical surface triangles. phi runs from +X towards +Z, which is clockwise
+        // seen from above (+Y), so outward (CCW from outside) order is p00, p11, p10.
         // theta goes from 0 (north pole, Y = radius) to cutAngleRad
         for (int i = 0; i < thetaSteps; i++) {
             float theta1 = cutAngleRad * i / thetaSteps;
@@ -101,19 +102,19 @@ public final class HemisphereShapeGenerator implements ShapeGenerator {
                 // For the first ring (theta1=0), p00 and p01 coincide at the pole
                 // Use single triangle instead of degenerate quad
                 if (i == 0) {
-                    // Single triangle: pole -> p10 -> p11
+                    // Single triangle: pole -> p11 -> p10 (CCW from outside)
                     coords.add(p00);
-                    coords.add(p10);
                     coords.add(p11);
+                    coords.add(p10);
                 } else {
                     // Quad as 2 triangles (CCW from outside)
                     coords.add(p00);
-                    coords.add(p10);
                     coords.add(p11);
+                    coords.add(p10);
 
                     coords.add(p00);
-                    coords.add(p11);
                     coords.add(p01);
+                    coords.add(p11);
                 }
             }
         }
@@ -134,11 +135,11 @@ public final class HemisphereShapeGenerator implements ShapeGenerator {
                 float x2 = capRadius * (float) Math.cos(phi2);
                 float z2 = capRadius * (float) Math.sin(phi2);
 
-                // Cap faces inward (normal pointing down, -Y direction)
-                // CCW from below: center, p2, p1
+                // Cap faces down (-Y, out of the solid): CCW from below is
+                // center, p1, p2, because phi runs clockwise seen from above (+Y)
                 coords.add(capCenter);
-                coords.add(new Point3f(x2, capY, z2));
                 coords.add(new Point3f(x1, capY, z1));
+                coords.add(new Point3f(x2, capY, z2));
             }
         }
 
