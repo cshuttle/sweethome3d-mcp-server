@@ -12,6 +12,7 @@ import com.eteks.sweethome3d.model.ObserverCamera;
 import com.eteks.sweethome3d.model.RecorderException;
 import com.sh3d.mcp.bridge.HomeAccessor;
 import com.sh3d.mcp.bridge.HomeCleaner;
+import com.sh3d.mcp.bridge.HomeSourceTracker;
 import com.sh3d.mcp.protocol.Request;
 import com.sh3d.mcp.protocol.Response;
 
@@ -115,6 +116,7 @@ public class LoadHomeHandler implements CommandHandler, CommandDescriptor {
 
             // --- Metadata ---
             home.setName(normalizedPath);
+            HomeSourceTracker.stamp(home, normalizedPath);
             home.setModified(false);
             home.setBasePlanLocked(loaded.isBasePlanLocked());
 

@@ -3,6 +3,7 @@ package com.sh3d.mcp.plugin;
 import com.eteks.sweethome3d.plugin.Plugin;
 import com.eteks.sweethome3d.plugin.PluginAction;
 import com.sh3d.mcp.bridge.HomeAccessor;
+import com.sh3d.mcp.bridge.HomeSourceTracker;
 import com.sh3d.mcp.command.handler.AddDimensionLineHandler;
 import com.sh3d.mcp.command.handler.AddLabelHandler;
 import com.sh3d.mcp.command.handler.AddLevelHandler;
@@ -39,6 +40,7 @@ import com.sh3d.mcp.command.handler.ListLevelsHandler;
 import com.sh3d.mcp.command.handler.ListTexturesCatalogHandler;
 import com.sh3d.mcp.command.handler.PlaceDoorOrWindowHandler;
 import com.sh3d.mcp.command.handler.PlaceFurnitureHandler;
+import com.sh3d.mcp.command.handler.QueryStateHandler;
 import com.sh3d.mcp.command.handler.ReplaceModelHandler;
 import com.sh3d.mcp.command.handler.RenderPhotoHandler;
 import com.sh3d.mcp.command.handler.RestoreCheckpointHandler;
@@ -99,6 +101,12 @@ public class SH3DMcpPlugin extends Plugin {
                 getHome(),
                 getUserPreferences()
         );
+        // Remember the file this home came from inside the home, so a "[Recovered]" copy whose
+        // name Sweet Home 3D clears can still be saved back to it (house-model#90).
+        accessor.runOnEDT(() -> {
+            HomeSourceTracker.track(getHome());
+            return null;
+        });
 
         ExportableView planView = resolvePlanView();
         registry = createCommandRegistry(planView);
@@ -228,6 +236,7 @@ public class SH3DMcpPlugin extends Plugin {
         registry.register("import_furniture", new ImportFurnitureHandler());
         registry.register("replace_model", new ReplaceModelHandler());
         registry.register("get_state", new GetStateHandler());
+        registry.register("query_state", new QueryStateHandler());
         registry.register("list_categories", new ListCategoriesHandler());
         registry.register("list_furniture_catalog", new ListFurnitureCatalogHandler());
         registry.register("list_levels", new ListLevelsHandler());
