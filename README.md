@@ -122,7 +122,7 @@ For Claude Code, create `.mcp.json` in your project directory:
 
 | Command | Description |
 |---------|-------------|
-| `get_state` | Full scene state: walls, furniture, rooms, camera, labels, levels |
+| `get_state` | Full scene state: walls, furniture, rooms, camera, labels, levels; each wall side and room surface's texture with its angle, scale and offsets in cm (`<surface>TextureInfo`) |
 | `query_state` | Only the part of the scene asked for, serialised like `get_state`: filter by `kinds` (walls, rooms, furniture, doors, levels, labels), `level` (id or name), plan `bbox` `[x0,y0,x1,y1]`, `name` (case-insensitive regex), `visible`, keep only `fields`, cap with `limit` per kind |
 | `clear_scene` | Remove all objects from the scene |
 
@@ -170,7 +170,7 @@ For Claude Code, create `.mcp.json` in your project directory:
 | Command | Description |
 |---------|-------------|
 | `list_textures_catalog` | Browse texture catalog; filter by name or category |
-| `apply_texture` | Apply catalog texture to wall side or room surface |
+| `apply_texture` | Put a texture on a wall side or room surface: from the catalog (`textureName`), copied from another surface of the home (`fromTargetType`/`fromTargetId`/`fromSurface`, e.g. a texture imported from a photo), or the one already there (`keepTexture`); `angle`, `scale` and `xOffset`/`yOffset` in cm (wall side: +y moves the pattern up, +x to the right as seen facing it) |
 | `set_environment` | Ground/sky colors, lighting, wall transparency, drawing mode |
 
 ### 3D Shapes
