@@ -497,8 +497,391 @@ class ApplyTextureHandlerTest {
         assertTrue(required.contains("targetType"));
         assertTrue(required.contains("targetId"));
         assertTrue(required.contains("surface"));
-        assertTrue(required.contains("textureName"));
-        assertEquals(4, required.size());
+        assertFalse(required.contains("textureName"), "textureName is one of three texture sources");
+        assertEquals(3, required.size());
+
+        for (String key : new String[] {"fromTargetType", "fromTargetId", "fromSurface", "keepTexture",
+                "xOffset", "yOffset"}) {
+            assertTrue(properties.containsKey(key), key);
+        }
+        @SuppressWarnings("unchecked")
+        Map<String, Object> yOffset = (Map<String, Object>) properties.get("yOffset");
+        assertEquals("number", yOffset.get("type"));
+        assertTrue(yOffset.get("description").toString().contains("cm"));
+        assertTrue(yOffset.get("description").toString().contains("up"));
+    }
+
+    // --- Offsets (cm in, fraction of a tile stored) ---
+
+    @Test
+    void testCatalogTextureWithYOffsetOnWallLeftSide() {
+        Wall wall = addWall(0, 0, 500, 0);
+
+        // White Plaster is a 50 x 50 cm tile: 20 cm = 0.4 of a tile
+        Response resp = handler.execute(req("targetType", "wall", "targetId", wall.getId(), "surface", "left",
+                "textureName", "White Plaster", "yOffset", 20.0), accessor);
+
+        assertTrue(resp.isOk(), resp.getMessage());
+        HomeTexture t = wall.getLeftSideTexture();
+        assertEquals(0f, t.getXOffset(), 1e-6f);
+        assertEquals(0.4f, t.getYOffset(), 1e-6f);
+        assertEquals(0f, t.getAngle(), 1e-6f);
+        assertEquals(1f, t.getScale(), 1e-6f);
+        assertTrue(t.isLeftToRightOriented());
+        assertNull(wall.getRightSideTexture());
+        assertEquals("catalog", resp.getData().get("source"));
+        assertEquals(20.0, (Double) info(resp, "leftSideTextureInfo").get("yOffset"), 1e-9);
+        assertEquals(0.0, (Double) info(resp, "leftSideTextureInfo").get("xOffset"), 1e-9);
+    }
+
+    @Test
+    void testOffsetsAreConvertedAtTheFinalScale() {
+        Wall wall = addWall(0, 0, 500, 0);
+
+        // Red Brick (Floors) is 30 x 30; at scale 2 a tile is 60 cm: x 15 cm = 0.25, y -30 cm = -0.5
+        Response resp = handler.execute(req("targetType", "wall", "targetId", wall.getId(), "surface", "right",
+                "textureName", "Red Brick", "scale", 2.0, "xOffset", 15.0, "yOffset", -30.0), accessor);
+
+        assertTrue(resp.isOk(), resp.getMessage());
+        HomeTexture t = wall.getRightSideTexture();
+        assertEquals(0.25f, t.getXOffset(), 1e-6f);
+        assertEquals(-0.5f, t.getYOffset(), 1e-6f);
+        assertEquals(15.0, (Double) info(resp, "rightSideTextureInfo").get("xOffset"), 1e-9);
+        assertEquals(-30.0, (Double) info(resp, "rightSideTextureInfo").get("yOffset"), 1e-9);
+    }
+
+    @Test
+    void testOffsetsOnRoomFloorAndCeiling() {
+        Room room = addRoom();
+
+        Response resp = handler.execute(req("targetType", "room", "targetId", room.getId(), "surface", "both",
+                "textureName", "Oak Parquet", "xOffset", 10.0, "yOffset", 20.0), accessor);
+
+        assertTrue(resp.isOk(), resp.getMessage());
+        // Oak Parquet is 40 x 40
+        for (HomeTexture t : new HomeTexture[] {room.getFloorTexture(), room.getCeilingTexture()}) {
+            assertEquals(0.25f, t.getXOffset(), 1e-6f);
+            assertEquals(0.5f, t.getYOffset(), 1e-6f);
+        }
+        assertEquals(10.0, (Double) info(resp, "floorTextureInfo").get("xOffset"), 1e-9);
+        assertEquals(20.0, (Double) info(resp, "ceilingTextureInfo").get("yOffset"), 1e-9);
+    }
+
+    @Test
+    void testNonFiniteOffsetIsAnError() {
+        Wall wall = addWall(0, 0, 500, 0);
+
+        Response resp = handler.execute(req("targetType", "wall", "targetId", wall.getId(), "surface", "left",
+                "textureName", "White Plaster", "yOffset", Double.POSITIVE_INFINITY), accessor);
+
+        assertTrue(resp.isError());
+        assertTrue(resp.getMessage().contains("yOffset"));
+        assertNull(wall.getLeftSideTexture());
+    }
+
+    // --- keepTexture: change only the offsets (or angle/scale) of the texture already there ---
+
+    @Test
+    void testKeepTextureShiftsOnlyTheOffsetOnAWallSide() {
+        Wall wall = addWall(0, 0, 500, 0);
+        HomeTexture before = photoTexture(0.1f, 0.2f, (float) Math.toRadians(30), 1.5f, false);
+        wall.setLeftSideTexture(before);
+        HomeTexture right = photoTexture(0f, 0f, 0f, 1f, false);
+        wall.setRightSideTexture(right);
+
+        // Stone tile 60 x 40 cm at scale 1.5 is 90 x 60 cm: +20 cm up = 1/3 of a tile
+        Response resp = handler.execute(req("targetType", "wall", "targetId", wall.getId(), "surface", "left",
+                "keepTexture", true, "yOffset", 20.0), accessor);
+
+        assertTrue(resp.isOk(), resp.getMessage());
+        HomeTexture after = wall.getLeftSideTexture();
+        assertSame(before.getImage(), after.getImage());
+        assertEquals(before.getName(), after.getName());
+        assertEquals(before.getWidth(), after.getWidth(), 0f);
+        assertEquals(before.getHeight(), after.getHeight(), 0f);
+        assertEquals(before.getAngle(), after.getAngle(), 0f);
+        assertEquals(before.getScale(), after.getScale(), 0f);
+        assertEquals(before.getXOffset(), after.getXOffset(), 0f);
+        assertEquals(before.isLeftToRightOriented(), after.isLeftToRightOriented());
+        assertEquals(20f / 60f, after.getYOffset(), 1e-6f);
+        assertSame(right, wall.getRightSideTexture(), "the other side is untouched");
+
+        assertEquals("keep", resp.getData().get("source"));
+        assertEquals("Stone veneer", resp.getData().get("textureName"));
+        assertNull(resp.getData().get("textureCategory"));
+        assertEquals(20.0, (Double) info(resp, "leftSideTextureInfo").get("yOffset"), 1e-4);
+        assertEquals(9.0, (Double) info(resp, "leftSideTextureInfo").get("xOffset"), 1e-4);
+        assertEquals(30.0, (Double) info(resp, "leftSideTextureInfo").get("angle"), 1e-4);
+    }
+
+    @Test
+    void testKeepTextureOnBothSidesKeepsEachSidesOwnTexture() {
+        Wall wall = addWall(0, 0, 500, 0);
+        handler.execute(makeWallRequest(wall.getId(), "left", "White Plaster"), accessor);
+        handler.execute(makeWallRequest(wall.getId(), "right", "Red Brick"), accessor);
+
+        Response resp = handler.execute(req("targetType", "wall", "targetId", wall.getId(), "surface", "both",
+                "keepTexture", true, "xOffset", 5.0), accessor);
+
+        assertTrue(resp.isOk(), resp.getMessage());
+        assertEquals("White Plaster", wall.getLeftSideTexture().getName());
+        assertEquals("Red Brick", wall.getRightSideTexture().getName());
+        assertEquals(5f / 50f, wall.getLeftSideTexture().getXOffset(), 1e-6f);
+        assertEquals(5f / 30f, wall.getRightSideTexture().getXOffset(), 1e-6f);
+        assertNull(resp.getData().get("textureName"), "the two sides carry different textures");
+    }
+
+    @Test
+    void testKeepTextureOnRoomFloorKeepsFittingArea() {
+        Room room = addRoom();
+        HomeTexture before = photoTexture(0f, 0f, 0f, 1f, true);
+        room.setFloorTexture(before);
+
+        Response resp = handler.execute(req("targetType", "room", "targetId", room.getId(), "surface", "floor",
+                "keepTexture", true, "xOffset", 12.0), accessor);
+
+        assertTrue(resp.isOk(), resp.getMessage());
+        HomeTexture after = room.getFloorTexture();
+        assertSame(before.getImage(), after.getImage());
+        assertTrue(after.isFittingArea());
+        assertEquals(12f / 60f, after.getXOffset(), 1e-6f);
+        assertEquals(0f, after.getYOffset(), 0f);
+        assertNull(room.getCeilingTexture());
+    }
+
+    @Test
+    void testKeepTextureOnRoomCeilingWithScaleKeepsTheStoredOffsetFraction() {
+        Room room = addRoom();
+        room.setCeilingTexture(photoTexture(0.5f, 0.25f, 0f, 1f, false));
+
+        Response resp = handler.execute(req("targetType", "room", "targetId", room.getId(), "surface", "ceiling",
+                "keepTexture", true, "scale", 2.0), accessor);
+
+        assertTrue(resp.isOk(), resp.getMessage());
+        HomeTexture after = room.getCeilingTexture();
+        assertEquals(2f, after.getScale(), 0f);
+        assertEquals(0.5f, after.getXOffset(), 0f);
+        assertEquals(0.25f, after.getYOffset(), 0f);
+        // the offset in cm grows with the tile: 0.5 x 60 x 2
+        assertEquals(60.0, (Double) info(resp, "ceilingTextureInfo").get("xOffset"), 1e-4);
+    }
+
+    @Test
+    void testKeepTextureWithoutATextureIsAnErrorAndChangesNothing() {
+        Wall wall = addWall(0, 0, 500, 0);
+        HomeTexture left = photoTexture(0f, 0f, 0f, 1f, false);
+        wall.setLeftSideTexture(left);
+
+        Response resp = handler.execute(req("targetType", "wall", "targetId", wall.getId(), "surface", "both",
+                "keepTexture", true, "yOffset", 20.0), accessor);
+
+        assertTrue(resp.isError());
+        assertTrue(resp.getMessage().contains("no texture"), resp.getMessage());
+        assertTrue(resp.getMessage().contains("right"), resp.getMessage());
+        assertSame(left, wall.getLeftSideTexture(), "all or nothing: the left side was not shifted");
+    }
+
+    @Test
+    void testKeepTextureNeedsSomethingToChange() {
+        Wall wall = addWall(0, 0, 500, 0);
+        wall.setLeftSideTexture(photoTexture(0f, 0f, 0f, 1f, false));
+
+        Response resp = handler.execute(req("targetType", "wall", "targetId", wall.getId(), "surface", "left",
+                "keepTexture", true), accessor);
+
+        assertTrue(resp.isError());
+        assertTrue(resp.getMessage().contains("xOffset"));
+    }
+
+    @Test
+    void testKeepTextureOnUnknownWallIsAnError() {
+        Response resp = handler.execute(req("targetType", "wall", "targetId", "nonexistent-id", "surface", "left",
+                "keepTexture", true, "yOffset", 20.0), accessor);
+
+        assertTrue(resp.isError());
+        assertTrue(resp.getMessage().contains("Wall not found"));
+    }
+
+    // --- Copy a texture already in the home ---
+
+    @Test
+    void testCopyFromWallSideToWallSide() {
+        Wall source = addWall(0, 0, 500, 0);
+        HomeTexture photo = photoTexture(0.1f, 0.2f, (float) Math.toRadians(15), 1.25f, false);
+        source.setRightSideTexture(photo);
+        Wall target = addWall(500, 0, 500, 400);
+
+        Response resp = handler.execute(req("targetType", "wall", "targetId", target.getId(), "surface", "left",
+                "fromTargetType", "wall", "fromTargetId", source.getId(), "fromSurface", "right"), accessor);
+
+        assertTrue(resp.isOk(), resp.getMessage());
+        HomeTexture copy = target.getLeftSideTexture();
+        assertSame(photo.getImage(), copy.getImage());
+        assertEquals("Stone veneer", copy.getName());
+        assertEquals(photo.getWidth(), copy.getWidth(), 0f);
+        assertEquals(photo.getHeight(), copy.getHeight(), 0f);
+        assertEquals(photo.getAngle(), copy.getAngle(), 0f);
+        assertEquals(photo.getScale(), copy.getScale(), 0f);
+        assertEquals(photo.getXOffset(), copy.getXOffset(), 0f);
+        assertEquals(photo.getYOffset(), copy.getYOffset(), 0f);
+        assertNull(target.getRightSideTexture());
+        assertSame(photo, source.getRightSideTexture(), "the source is untouched");
+
+        assertEquals("copy", resp.getData().get("source"));
+        assertEquals("Stone veneer", resp.getData().get("textureName"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> from = (Map<String, Object>) resp.getData().get("copiedFrom");
+        assertEquals("wall", from.get("targetType"));
+        assertEquals(source.getId(), from.get("targetId"));
+        assertEquals("right", from.get("surface"));
+    }
+
+    @Test
+    void testCopyFromWallToRoomFloorWithOffsetOverride() {
+        Wall source = addWall(0, 0, 500, 0);
+        source.setLeftSideTexture(photoTexture(0.1f, 0.2f, 0f, 1f, false));
+        Room room = addRoom();
+
+        Response resp = handler.execute(req("targetType", "room", "targetId", room.getId(), "surface", "floor",
+                "fromTargetType", "wall", "fromTargetId", source.getId(), "fromSurface", "left",
+                "yOffset", 10.0), accessor);
+
+        assertTrue(resp.isOk(), resp.getMessage());
+        HomeTexture copy = room.getFloorTexture();
+        assertEquals("Stone veneer", copy.getName());
+        assertEquals(0.1f, copy.getXOffset(), 0f);
+        assertEquals(10f / 40f, copy.getYOffset(), 1e-6f);
+        assertNull(room.getCeilingTexture());
+    }
+
+    @Test
+    void testCopyFromRoomFloorToRoomCeilingAndWallBothSides() {
+        Room source = addRoom();
+        source.setFloorTexture(photoTexture(0f, 0f, 0f, 0.5f, true));
+        Room target = addRoom();
+        Wall wall = addWall(0, 0, 500, 0);
+
+        Response toCeiling = handler.execute(req("targetType", "room", "targetId", target.getId(),
+                "surface", "ceiling", "fromTargetType", "room", "fromTargetId", source.getId(),
+                "fromSurface", "floor"), accessor);
+        Response toWall = handler.execute(req("targetType", "wall", "targetId", wall.getId(), "surface", "both",
+                "fromTargetType", "room", "fromTargetId", source.getId(), "fromSurface", "floor",
+                "angle", 90.0), accessor);
+
+        assertTrue(toCeiling.isOk(), toCeiling.getMessage());
+        assertTrue(target.getCeilingTexture().isFittingArea());
+        assertEquals(0.5f, target.getCeilingTexture().getScale(), 0f);
+        assertTrue(toWall.isOk(), toWall.getMessage());
+        assertEquals("Stone veneer", wall.getLeftSideTexture().getName());
+        assertEquals("Stone veneer", wall.getRightSideTexture().getName());
+        assertEquals(Math.toRadians(90), wall.getLeftSideTexture().getAngle(), 1e-6);
+        assertEquals("Stone veneer", toWall.getData().get("textureName"));
+    }
+
+    @Test
+    void testCopyFromUnknownSourceIsAnError() {
+        Wall wall = addWall(0, 0, 500, 0);
+
+        Response resp = handler.execute(req("targetType", "wall", "targetId", wall.getId(), "surface", "left",
+                "fromTargetType", "room", "fromTargetId", "nonexistent-id", "fromSurface", "floor"), accessor);
+
+        assertTrue(resp.isError());
+        assertTrue(resp.getMessage().contains("Source room not found"), resp.getMessage());
+        assertNull(wall.getLeftSideTexture());
+    }
+
+    @Test
+    void testCopyToUnknownTargetIsAnError() {
+        Wall source = addWall(0, 0, 500, 0);
+        source.setLeftSideTexture(photoTexture(0f, 0f, 0f, 1f, false));
+
+        Response resp = handler.execute(req("targetType", "room", "targetId", "nonexistent-id", "surface", "floor",
+                "fromTargetType", "wall", "fromTargetId", source.getId(), "fromSurface", "left"), accessor);
+
+        assertTrue(resp.isError());
+        assertTrue(resp.getMessage().contains("Room not found"), resp.getMessage());
+    }
+
+    @Test
+    void testCopyFromASurfaceWithoutTextureIsAnError() {
+        Wall source = addWall(0, 0, 500, 0);
+        Wall target = addWall(500, 0, 500, 400);
+
+        Response resp = handler.execute(req("targetType", "wall", "targetId", target.getId(), "surface", "left",
+                "fromTargetType", "wall", "fromTargetId", source.getId(), "fromSurface", "left"), accessor);
+
+        assertTrue(resp.isError());
+        assertTrue(resp.getMessage().contains("no texture"), resp.getMessage());
+    }
+
+    @Test
+    void testCopyNeedsAllThreeFromParameters() {
+        Wall wall = addWall(0, 0, 500, 0);
+
+        Response resp = handler.execute(req("targetType", "wall", "targetId", wall.getId(), "surface", "left",
+                "fromTargetType", "wall", "fromTargetId", wall.getId()), accessor);
+
+        assertTrue(resp.isError());
+        assertTrue(resp.getMessage().contains("fromSurface"));
+    }
+
+    @Test
+    void testCopyRejectsBadFromTypeAndSurface() {
+        Wall wall = addWall(0, 0, 500, 0);
+
+        Response badType = handler.execute(req("targetType", "wall", "targetId", wall.getId(), "surface", "left",
+                "fromTargetType", "furniture", "fromTargetId", "x", "fromSurface", "left"), accessor);
+        Response both = handler.execute(req("targetType", "wall", "targetId", wall.getId(), "surface", "left",
+                "fromTargetType", "wall", "fromTargetId", wall.getId(), "fromSurface", "both"), accessor);
+        Response wrongSurface = handler.execute(req("targetType", "wall", "targetId", wall.getId(),
+                "surface", "left", "fromTargetType", "room", "fromTargetId", "x", "fromSurface", "left"), accessor);
+
+        assertTrue(badType.isError());
+        assertTrue(badType.getMessage().contains("fromTargetType"));
+        assertTrue(both.isError());
+        assertTrue(both.getMessage().contains("fromSurface"));
+        assertTrue(wrongSurface.isError());
+        assertTrue(wrongSurface.getMessage().contains("floor, ceiling"));
+    }
+
+    @Test
+    void testOnlyOneTextureSource() {
+        Wall wall = addWall(0, 0, 500, 0);
+
+        Response nameAndKeep = handler.execute(req("targetType", "wall", "targetId", wall.getId(),
+                "surface", "left", "textureName", "Red Brick", "keepTexture", true, "yOffset", 1.0), accessor);
+        Response nameAndCopy = handler.execute(req("targetType", "wall", "targetId", wall.getId(),
+                "surface", "left", "textureName", "Red Brick", "fromTargetType", "wall",
+                "fromTargetId", wall.getId(), "fromSurface", "right"), accessor);
+
+        assertTrue(nameAndKeep.isError());
+        assertTrue(nameAndKeep.getMessage().contains("only one"));
+        assertTrue(nameAndCopy.isError());
+        assertNull(wall.getLeftSideTexture());
+    }
+
+    // --- Helpers for the copy/keep tests ---
+
+    /** A 60 x 40 cm texture that is not in the catalog, like one imported from a photo. */
+    private static HomeTexture photoTexture(float xOffset, float yOffset, float angle, float scale,
+                                            boolean fittingArea) {
+        CatalogTexture imported = new CatalogTexture("Stone veneer", null, 60f, 40f);
+        return new HomeTexture(imported, xOffset, yOffset, angle, scale, fittingArea, true);
+    }
+
+    private static Request req(Object... keyValues) {
+        Map<String, Object> params = new LinkedHashMap<>();
+        for (int i = 0; i < keyValues.length; i += 2) {
+            params.put((String) keyValues[i], keyValues[i + 1]);
+        }
+        return new Request("apply_texture", params);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> info(Response resp, String key) {
+        Map<String, Object> info = (Map<String, Object>) resp.getData().get(key);
+        assertNotNull(info, key);
+        return info;
     }
 
     // --- Helpers ---

@@ -3,9 +3,11 @@ import com.sh3d.mcp.command.CommandDescriptor;
 import com.sh3d.mcp.command.CommandHandler;
 
 import com.eteks.sweethome3d.model.CatalogDoorOrWindow;
+import com.eteks.sweethome3d.model.CatalogTexture;
 import com.eteks.sweethome3d.model.Home;
 import com.eteks.sweethome3d.model.HomeDoorOrWindow;
 import com.eteks.sweethome3d.model.HomePieceOfFurniture;
+import com.eteks.sweethome3d.model.HomeTexture;
 import com.eteks.sweethome3d.model.Label;
 import com.eteks.sweethome3d.model.Level;
 import com.eteks.sweethome3d.model.Room;
@@ -297,6 +299,44 @@ class QueryStateHandlerTest {
         for (Map<String, Object> item : list(resp, "furniture")) {
             assertEquals(Arrays.asList("id", "name", "x"), new ArrayList<>(item.keySet()));
         }
+    }
+
+    @Test
+    void testTextureOffsetsAreReportedInCentimetres() {
+        Wall wall = home.getWalls().iterator().next();
+        wall.setLeftSideTexture(new HomeTexture(new CatalogTexture("Stone veneer", null, 60f, 40f),
+                0f, 0.5f, 0f, 1f, false, true));
+        Room kitchen = home.getRooms().get(0);
+        kitchen.setFloorTexture(new HomeTexture(new CatalogTexture("Oak", null, 40f, 40f),
+                0.25f, 0f, 0f, 2f, false, true));
+
+        Response resp = execute("kinds", list("walls", "rooms"),
+                "fields", list("leftSideTexture", "leftSideTextureInfo", "rightSideTextureInfo",
+                        "floorTexture", "floorTextureInfo"));
+
+        Map<String, Object> w = byId(list(resp, "walls"), wall.getId());
+        assertEquals("Stone veneer", w.get("leftSideTexture"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> wallInfo = (Map<String, Object>) w.get("leftSideTextureInfo");
+        assertEquals(20.0, wallInfo.get("yOffset"));
+        assertEquals(0.0, wallInfo.get("xOffset"));
+        assertTrue(w.containsKey("rightSideTextureInfo"));
+        assertNull(w.get("rightSideTextureInfo"));
+
+        Map<String, Object> r = byId(list(resp, "rooms"), kitchen.getId());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> floorInfo = (Map<String, Object>) r.get("floorTextureInfo");
+        assertEquals("Oak", floorInfo.get("name"));
+        assertEquals(20.0, floorInfo.get("xOffset"));
+        assertEquals(2.0, floorInfo.get("scale"));
+    }
+
+    private static Map<String, Object> byId(List<Map<String, Object>> items, String id) {
+        for (Map<String, Object> item : items) {
+            if (id.equals(item.get("id"))) return item;
+        }
+        fail("no item " + id);
+        return null;
     }
 
     @Test

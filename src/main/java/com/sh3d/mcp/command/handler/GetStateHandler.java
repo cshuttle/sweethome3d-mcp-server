@@ -276,6 +276,8 @@ public class GetStateHandler implements CommandHandler, CommandDescriptor {
     public String getDescription() {
         return "Returns the full state of the Sweet Home 3D scene: walls with coordinates, "
                 + "furniture with positions and IDs, rooms with polygons, labels, dimension lines, "
+                + "the texture on each wall side and room surface (name, plus <surface>TextureInfo with "
+                + "size, angle, scale and xOffset/yOffset in cm, as apply_texture takes them), "
                 + "camera settings, environment (ground, sky, light, wallsAlpha, drawingMode), "
                 + "and levels. Each object has a stable string 'id' field that can be "
                 + "used in subsequent commands (delete, modify, etc.). Always call this before "

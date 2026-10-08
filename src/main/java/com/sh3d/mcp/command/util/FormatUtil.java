@@ -76,7 +76,8 @@ public final class FormatUtil {
 
     /**
      * Builds a standard wall info map with all display fields:
-     * id, coordinates, thickness, height, arcExtent, colors, shininess, textures, level.
+     * id, coordinates, thickness, height, arcExtent, colors, shininess, textures (name, and details with
+     * offsets in cm via {@link TextureUtil#textureInfo}), level.
      */
     public static Map<String, Object> buildWallInfo(Wall wall) {
         Map<String, Object> info = new LinkedHashMap<>();
@@ -98,6 +99,8 @@ public final class FormatUtil {
         info.put("rightSideShininess", round2(wall.getRightSideShininess()));
         info.put("leftSideTexture", textureName(wall.getLeftSideTexture()));
         info.put("rightSideTexture", textureName(wall.getRightSideTexture()));
+        info.put("leftSideTextureInfo", TextureUtil.textureInfo(wall.getLeftSideTexture()));
+        info.put("rightSideTextureInfo", TextureUtil.textureInfo(wall.getRightSideTexture()));
         Level wallLevel = wall.getLevel();
         info.put("level", wallLevel != null ? wallLevel.getName() : null);
         return info;
@@ -105,7 +108,8 @@ public final class FormatUtil {
 
     /**
      * Builds a standard room info map with all display fields:
-     * id, name, area, visibility flags, colors, shininess, textures, center, points, level.
+     * id, name, area, visibility flags, colors, shininess, textures (name, and details with offsets in cm
+     * via {@link TextureUtil#textureInfo}), center, points, level.
      */
     public static Map<String, Object> buildRoomInfo(Room room) {
         Map<String, Object> info = new LinkedHashMap<>();
@@ -121,6 +125,8 @@ public final class FormatUtil {
         info.put("ceilingShininess", round2(room.getCeilingShininess()));
         info.put("floorTexture", textureName(room.getFloorTexture()));
         info.put("ceilingTexture", textureName(room.getCeilingTexture()));
+        info.put("floorTextureInfo", TextureUtil.textureInfo(room.getFloorTexture()));
+        info.put("ceilingTextureInfo", TextureUtil.textureInfo(room.getCeilingTexture()));
         info.put("xCenter", round2(room.getXCenter()));
         info.put("yCenter", round2(room.getYCenter()));
 
