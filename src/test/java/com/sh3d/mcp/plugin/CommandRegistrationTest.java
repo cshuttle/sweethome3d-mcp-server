@@ -101,6 +101,7 @@ class CommandRegistrationTest {
                 "place_door_or_window",
                 "place_furniture",
                 "render_photo",
+                "render_side_view",
                 "restore_checkpoint",
                 "save_home",
                 "set_camera",

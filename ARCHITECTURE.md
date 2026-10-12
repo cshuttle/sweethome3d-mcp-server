@@ -424,6 +424,7 @@ CommandRegistry (46 команд)
   |-- "import_furniture"        --> ImportFurnitureHandler
   |-- "replace_model"           --> ReplaceModelHandler
   |-- "render_photo"            --> RenderPhotoHandler
+  |-- "render_side_view"        --> RenderSideViewHandler
   |-- "batch_commands"          --> BatchCommandsHandler
   |-- "generate_shape"          --> GenerateShapeHandler
   |-- "duplicate_objects"       --> DuplicateObjectsHandler
