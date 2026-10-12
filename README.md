@@ -209,6 +209,7 @@ For Claude Code, create `.mcp.json` in your project directory:
 | Command | Description |
 |---------|-------------|
 | `render_photo` | Ray-traced 3D render (Sunflow); standard or overhead bird's-eye view; inline JPEG or saved PNG |
+| `render_side_view` | Flat side elevation or section (parallel projection) as Sweet Home 3D's own 3D view draws it; PNG with the pixel scale and a plan-to-pixel mapping |
 | `export_plan_image` | 2D floor plan as PNG |
 | `export_svg` | 2D floor plan as SVG |
 | `export_to_obj` | 3D scene as Wavefront OBJ (ZIP: OBJ + MTL + textures) |

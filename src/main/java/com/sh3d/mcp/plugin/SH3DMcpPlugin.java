@@ -43,6 +43,7 @@ import com.sh3d.mcp.command.handler.PlaceFurnitureHandler;
 import com.sh3d.mcp.command.handler.QueryStateHandler;
 import com.sh3d.mcp.command.handler.ReplaceModelHandler;
 import com.sh3d.mcp.command.handler.RenderPhotoHandler;
+import com.sh3d.mcp.command.handler.RenderSideViewHandler;
 import com.sh3d.mcp.command.handler.RestoreCheckpointHandler;
 import com.sh3d.mcp.command.handler.LoadHomeHandler;
 import com.sh3d.mcp.command.handler.SaveHomeHandler;
@@ -242,6 +243,7 @@ public class SH3DMcpPlugin extends Plugin {
         registry.register("list_levels", new ListLevelsHandler());
         registry.register("list_textures_catalog", new ListTexturesCatalogHandler());
         registry.register("render_photo", new RenderPhotoHandler());
+        registry.register("render_side_view", new RenderSideViewHandler());
         registry.register("load_home", new LoadHomeHandler());
         registry.register("save_home", new SaveHomeHandler());
         registry.register("export_plan_image", new ExportPlanImageHandler(planView));
