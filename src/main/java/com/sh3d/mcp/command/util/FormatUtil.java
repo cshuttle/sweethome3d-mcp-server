@@ -71,6 +71,7 @@ public final class FormatUtil {
         info.put("width", round2(piece.getWidth()));
         info.put("depth", round2(piece.getDepth()));
         info.put("height", round2(piece.getHeight()));
+        info.put("dropOnTopElevation", round2(piece.getDropOnTopElevation()));
         return info;
     }
 
