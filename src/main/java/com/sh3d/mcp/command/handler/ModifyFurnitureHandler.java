@@ -3,6 +3,7 @@ import com.sh3d.mcp.command.CommandHandler;
 import com.sh3d.mcp.command.CommandDescriptor;
 import com.sh3d.mcp.command.util.FormatUtil;
 import com.sh3d.mcp.command.util.ColorParser;
+import com.sh3d.mcp.command.util.FurnitureUtil;
 
 import com.eteks.sweethome3d.model.Home;
 import com.eteks.sweethome3d.model.HomePieceOfFurniture;
@@ -28,7 +29,7 @@ public class ModifyFurnitureHandler implements CommandHandler, CommandDescriptor
 
     private static final List<String> MODIFIABLE_KEYS = Arrays.asList(
             "x", "y", "angle", "elevation", "width", "depth", "height",
-            "color", "visible", "mirrored", "name"
+            "color", "visible", "mirrored", "name", "dropOnTopElevation"
     );
 
     @Override
@@ -42,7 +43,16 @@ public class ModifyFurnitureHandler implements CommandHandler, CommandDescriptor
         boolean hasModifiable = MODIFIABLE_KEYS.stream().anyMatch(params::containsKey);
         if (!hasModifiable) {
             return Response.error("No modifiable properties provided. "
-                    + "Supported: x, y, angle, elevation, width, depth, height, color, visible, mirrored, name");
+                    + "Supported: x, y, angle, elevation, width, depth, height, color, visible, mirrored, name, "
+                    + "dropOnTopElevation");
+        }
+
+        if (params.containsKey("dropOnTopElevation")) {
+            Object raw = params.get("dropOnTopElevation");
+            if (!(raw instanceof Number) || !Double.isFinite(((Number) raw).doubleValue())) {
+                return Response.error("'dropOnTopElevation' must be a finite number "
+                        + "(a fraction of the piece's height, or -1 to ignore drops)");
+            }
         }
 
         // Validate color format before EDT
@@ -112,6 +122,11 @@ public class ModifyFurnitureHandler implements CommandHandler, CommandDescriptor
                 }
             }
 
+            // Drop target: Sweet Home 3D 7.5 saves this value but has no setter for it
+            if (params.containsKey("dropOnTopElevation")) {
+                FurnitureUtil.setDropOnTopElevation(piece, request.getFloat("dropOnTopElevation"));
+            }
+
             // Build response with current state
             Map<String, Object> result = FormatUtil.buildFurnitureInfo(piece);
             result.put("color", colorToHex(piece.getColor()));
@@ -132,7 +147,10 @@ public class ModifyFurnitureHandler implements CommandHandler, CommandDescriptor
         return "Modifies properties of existing furniture by ID. Use get_state to find furniture IDs. "
                 + "Only provided properties are changed; omitted properties remain unchanged. "
                 + "Coordinates are in centimeters, angle in degrees. "
-                + "Color is a hex string like '#FF0000' (red) or null to reset to default.";
+                + "Color is a hex string like '#FF0000' (red) or null to reset to default. "
+                + "dropOnTopElevation sets where a piece dropped on this one lands, as a fraction of its height "
+                + "(1, the default, is its top); a negative value makes the app ignore this piece as a drop target, "
+                + "for a large generated piece (walls, trim, wiring) whose outline encloses others.";
     }
 
     @Override
@@ -150,6 +168,8 @@ public class ModifyFurnitureHandler implements CommandHandler, CommandDescriptor
                 .bool("visible", "Whether furniture is visible in the scene")
                 .bool("mirrored", "Whether furniture model is mirrored")
                 .string("name", "New display name for the furniture")
+                .number("dropOnTopElevation", "Where a dropped piece lands, as a fraction of this piece's height "
+                        + "(1 = its top, the default); negative: never a drop target")
                 .build();
     }
 

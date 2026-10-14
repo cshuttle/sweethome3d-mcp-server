@@ -262,11 +262,43 @@ class ModifyFurnitureHandlerTest {
         assertTrue(props.containsKey("visible"));
         assertTrue(props.containsKey("mirrored"));
         assertTrue(props.containsKey("name"));
+        assertTrue(props.containsKey("dropOnTopElevation"));
 
         @SuppressWarnings("unchecked")
         List<String> required = (List<String>) schema.get("required");
         assertTrue(required.contains("id"));
         assertEquals(1, required.size());
+    }
+
+    @Test
+    void testModifyDropOnTopElevation() {
+        HomePieceOfFurniture piece = addFurniture("Basement walls", 0, 0);
+        assertEquals(1f, piece.getDropOnTopElevation(), 0.001f);
+
+        Response resp = handler.execute(makeRequest(piece.getId(), "dropOnTopElevation", -1.0), accessor);
+
+        assertTrue(resp.isOk());
+        assertEquals(-1f, piece.getDropOnTopElevation(), 0.001f);
+        assertEquals(-1.0, ((Number) resp.getData().get("dropOnTopElevation")).doubleValue(), 0.001);
+        assertEquals(0f, piece.getX(), 0.01f);
+    }
+
+    @Test
+    void testDropOnTopElevationSurvivesClone() {
+        HomePieceOfFurniture piece = addFurniture("Trim", 0, 0);
+        handler.execute(makeRequest(piece.getId(), "dropOnTopElevation", 0.5), accessor);
+
+        assertEquals(0.5f, piece.clone().getDropOnTopElevation(), 0.001f);
+    }
+
+    @Test
+    void testDropOnTopElevationMustBeANumber() {
+        HomePieceOfFurniture piece = addFurniture("Trim", 0, 0);
+
+        Response resp = handler.execute(makeRequest(piece.getId(), "dropOnTopElevation", "none"), accessor);
+
+        assertTrue(resp.isError());
+        assertEquals(1f, piece.getDropOnTopElevation(), 0.001f);
     }
 
     private HomePieceOfFurniture addFurniture(String name, float x, float y) {
