@@ -3,8 +3,10 @@ import com.sh3d.mcp.command.CommandHandler;
 import com.sh3d.mcp.command.CommandDescriptor;
 import com.sh3d.mcp.command.util.FormatUtil;
 import com.sh3d.mcp.command.util.ColorParser;
+import com.sh3d.mcp.command.util.LightUtil;
 
 import com.eteks.sweethome3d.model.Home;
+import com.eteks.sweethome3d.model.HomeLight;
 import com.eteks.sweethome3d.model.HomePieceOfFurniture;
 import com.sh3d.mcp.bridge.HomeAccessor;
 import com.sh3d.mcp.bridge.ObjectResolver;
@@ -40,17 +42,20 @@ public class ModifyFurnitureHandler implements CommandHandler, CommandDescriptor
 
         Map<String, Object> params = request.getParams();
         boolean hasModifiable = MODIFIABLE_KEYS.stream().anyMatch(params::containsKey)
-                || params.containsKey("properties");
+                || params.containsKey("properties")
+                || LightUtil.hasKeys(params);
         if (!hasModifiable) {
             return Response.error("No modifiable properties provided. "
                     + "Supported: x, y, angle, elevation, width, depth, height, color, visible, mirrored, name, "
-                    + "properties");
+                    + "properties, lightColor, lightSources, lightPower, asLight");
         }
 
-        // Validate custom properties before EDT
+        // Validate custom properties and light parameters before EDT
         final Map<String, String> propertiesToSet;
+        final LightUtil.Edit lightEdit;
         try {
             propertiesToSet = parseProperties(params);
+            lightEdit = LightUtil.parse(params);
         } catch (IllegalArgumentException e) {
             return Response.error(e.getMessage());
         }
@@ -64,12 +69,31 @@ public class ModifyFurnitureHandler implements CommandHandler, CommandDescriptor
         final Integer colorToSet = (colorResult != null && !colorResult.clear) ? colorResult.value : null;
         final boolean doClearColor = colorResult != null && colorResult.clear;
 
-        Map<String, Object> data = accessor.runOnEDT(() -> {
+        // The piece's data, an error message (a String), or null when the piece does not exist
+        Object outcome = accessor.runOnEDT(() -> {
             Home home = accessor.getHome();
             HomePieceOfFurniture piece = ObjectResolver.findFurniture(home, id);
 
             if (piece == null) {
                 return null;
+            }
+
+            // Light: check everything first, then replace the piece by a real light (asLight) and set its sources
+            // and power, so a refusal changes nothing
+            boolean converted = false;
+            if (lightEdit.asLight || lightEdit.changesLight()) {
+                LightUtil.Prepared prepared = LightUtil.prepare(lightEdit, piece, accessor.getFurnitureCatalog());
+                if (prepared.error != null) {
+                    return prepared.error;
+                }
+                if (prepared.replacement != null) {
+                    LightUtil.swap(home, piece, prepared.replacement);
+                    piece = prepared.replacement;
+                    converted = true;
+                }
+                if (piece instanceof HomeLight) {
+                    LightUtil.apply(lightEdit, (HomeLight) piece);
+                }
             }
 
             // Position
@@ -135,13 +159,22 @@ public class ModifyFurnitureHandler implements CommandHandler, CommandDescriptor
             result.put("visible", piece.isVisible());
             result.put("mirrored", piece.isModelMirrored());
             result.put("properties", FormatUtil.buildProperties(piece));
+            LightUtil.putLightInfo(result, piece);
+            if (converted) {
+                result.put("converted", true);
+            }
             return result;
         });
 
-        if (data == null) {
+        if (outcome == null) {
             return Response.error("Furniture not found: " + id);
         }
+        if (outcome instanceof String) {
+            return Response.error((String) outcome);
+        }
 
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = (Map<String, Object>) outcome;
         return Response.ok(data);
     }
 
@@ -186,7 +219,15 @@ public class ModifyFurnitureHandler implements CommandHandler, CommandDescriptor
                 + "Color is a hex string like '#FF0000' (red) or null to reset to default. "
                 + "properties sets custom string properties on the piece ({name: value}; null removes one), "
                 + "which Sweet Home 3D saves in the home and get_state/query_state report as 'properties'; "
-                + "other properties are kept. Undo with checkpoint / restore_checkpoint.";
+                + "other properties are kept. "
+                + "Light pieces (get_state/query_state report lightPower and lightSources for them): "
+                + "lightColor '#RRGGBB' recolours every light source; lightSources [{x, y, z, color, diameter?}] "
+                + "replaces them (x, y, z are fractions 0-1 of the piece's width, depth and height; diameter is a "
+                + "fraction of its width); lightPower is the app's 'Light power (%)', 0-100. "
+                + "A piece placed with place_furniture from a catalog light is a plain piece with no sources and "
+                + "no power: asLight: true first replaces it, in place, by a real light with the same id, level, "
+                + "position, size, name and properties. Sweet Home 3D then lights its 3D view and photos from it. "
+                + "Undo with checkpoint / restore_checkpoint.";
     }
 
     @Override
@@ -205,6 +246,26 @@ public class ModifyFurnitureHandler implements CommandHandler, CommandDescriptor
                 .bool("mirrored", "Whether furniture model is mirrored")
                 .string("name", "New display name for the furniture")
                 .raw("properties", propertiesSchema())
+                .string("lightColor", "Light pieces: color of every light source as '#RRGGBB'; positions and "
+                        + "diameters are kept. Not with lightSources")
+                .array("lightSources", SchemaBuilder.arrayDef(
+                        "Light pieces: new light sources replacing the piece's own (at least one). x, y, z are "
+                                + "fractions 0-1 of the piece's width, depth and height; diameter, optional, is a "
+                                + "fraction of its width (omitted: the app's 3.25 cm radius). "
+                                + "Example: [{\"x\":0.5,\"y\":0.5,\"z\":0.5,\"color\":\"#FFA757\"}]")
+                        .items(SchemaBuilder.create()
+                                .requiredNumber("x", "Fraction 0-1 of the piece's width")
+                                .requiredNumber("y", "Fraction 0-1 of the piece's depth")
+                                .requiredNumber("z", "Fraction 0-1 of the piece's height")
+                                .requiredString("color", "Color as '#RRGGBB'")
+                                .number("diameter", "Fraction above 0 and up to 1 of the piece's width")
+                                .build())
+                        .minItems(1)
+                        .build())
+                .number("lightPower", "Light pieces: power in percent, 0-100 (the app's 'Light power (%)')")
+                .bool("asLight", "Replace a plain piece of a catalog light (what place_furniture creates) by a real "
+                        + "light first, keeping its id, level, position, size, name and properties. Without it the "
+                        + "light parameters are refused on a plain piece")
                 .build();
     }
 
