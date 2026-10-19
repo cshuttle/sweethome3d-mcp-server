@@ -393,7 +393,8 @@ public class QueryStateHandler implements CommandHandler, CommandDescriptor {
                 + "'furniture' excludes doors and windows, 'doors' is doors and windows), level (id or name), "
                 + "bbox [x0,y0,x1,y1] in plan cm (an item matches when its plan footprint intersects it; labels by "
                 + "their point), name (case-insensitive regex on the name, or the text of a label; walls have no name), "
-                + "visible (own visibility flag and a viewable level), fields (properties to keep; id is always kept) "
+                + "visible (own visibility flag and a viewable level), fields (properties to keep; id is always kept; "
+                + "'properties' is a piece's custom properties, absent when it has none) "
                 + "and limit (items per kind). Returns a list per kind plus 'matched' counts before the limit and "
                 + "'truncated'. Prefer this to get_state on large homes.";
     }

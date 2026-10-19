@@ -331,6 +331,24 @@ class QueryStateHandlerTest {
         assertEquals(2.0, floorInfo.get("scale"));
     }
 
+    @Test
+    void testPropertiesFieldReportsCustomProperties() {
+        table.setProperty("ha_entity", "light.kitchen_table");
+
+        Response resp = execute("kinds", list("furniture"), "fields", list("name", "properties"));
+
+        Map<String, Object> t = byId(list(resp, "furniture"), table.getId());
+        assertEquals(Collections.singletonMap("ha_entity", "light.kitchen_table"), t.get("properties"));
+        for (Map<String, Object> item : list(resp, "furniture")) {
+            if (!table.getId().equals(item.get("id"))) {
+                assertFalse(item.containsKey("properties"), "untagged pieces carry no properties field");
+            }
+        }
+
+        Response state = new GetStateHandler().execute(new Request("get_state", Collections.emptyMap()), accessor);
+        assertEquals(t.get("properties"), byId(list(state, "furniture"), table.getId()).get("properties"));
+    }
+
     private static Map<String, Object> byId(List<Map<String, Object>> items, String id) {
         for (Map<String, Object> item : items) {
             if (id.equals(item.get("id"))) return item;

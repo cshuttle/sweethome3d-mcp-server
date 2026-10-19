@@ -166,6 +166,12 @@ public class GetStateHandler implements CommandHandler, CommandDescriptor {
 
         Level level = piece.getLevel();
         item.put("level", level != null ? level.getName() : null);
+
+        // Custom properties (modify_furniture 'properties'); only on pieces that have any
+        Map<String, Object> properties = FormatUtil.buildProperties(piece);
+        if (properties != null) {
+            item.put("properties", properties);
+        }
         return item;
     }
 
