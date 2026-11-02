@@ -1,6 +1,7 @@
 package com.sh3d.mcp.command.util;
 
 import com.eteks.sweethome3d.model.Camera;
+import com.eteks.sweethome3d.model.HomeObject;
 import com.eteks.sweethome3d.model.HomePieceOfFurniture;
 import com.eteks.sweethome3d.model.HomeTexture;
 import com.eteks.sweethome3d.model.Level;
@@ -8,6 +9,7 @@ import com.eteks.sweethome3d.model.Room;
 import com.eteks.sweethome3d.model.Wall;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -72,6 +74,24 @@ public final class FormatUtil {
         info.put("depth", round2(piece.getDepth()));
         info.put("height", round2(piece.getHeight()));
         return info;
+    }
+
+    /**
+     * The custom properties set on an object with {@link HomeObject#setProperty(String, String)},
+     * sorted by name, as Sweet Home 3D writes them to Home.xml ({@code <property name=".." value=".."/>}).
+     * Content-typed properties are left out. Returns null when the object has none.
+     */
+    public static Map<String, Object> buildProperties(HomeObject object) {
+        List<String> names = new ArrayList<>(object.getPropertyNames());
+        Collections.sort(names);
+        Map<String, Object> props = new LinkedHashMap<>();
+        for (String name : names) {
+            String value = object.getProperty(name);
+            if (value != null) {
+                props.put(name, value);
+            }
+        }
+        return props.isEmpty() ? null : props;
     }
 
     /**

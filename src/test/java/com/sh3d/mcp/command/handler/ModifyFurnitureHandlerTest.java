@@ -3,12 +3,19 @@ package com.sh3d.mcp.command.handler;
 import com.eteks.sweethome3d.model.CatalogPieceOfFurniture;
 import com.eteks.sweethome3d.model.Home;
 import com.eteks.sweethome3d.model.HomePieceOfFurniture;
+import com.eteks.sweethome3d.io.HomeXMLExporter;
+import com.eteks.sweethome3d.io.XMLWriter;
+import com.sh3d.mcp.bridge.CheckpointManager;
 import com.sh3d.mcp.bridge.HomeAccessor;
 import com.sh3d.mcp.protocol.Request;
 import com.sh3d.mcp.protocol.Response;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -267,6 +274,133 @@ class ModifyFurnitureHandlerTest {
         List<String> required = (List<String>) schema.get("required");
         assertTrue(required.contains("id"));
         assertEquals(1, required.size());
+    }
+
+    // --- Custom properties ---
+
+    @Test
+    void testSetProperty() {
+        HomePieceOfFurniture piece = addFurniture("Porch light", 0, 0);
+
+        Response resp = handler.execute(makeRequest(piece.getId(),
+                "properties", props("ha_entity", "light.porch,light.porch_2")), accessor);
+
+        assertTrue(resp.isOk(), resp.getMessage());
+        assertEquals("light.porch,light.porch_2", piece.getProperty("ha_entity"));
+        assertEquals(props("ha_entity", "light.porch,light.porch_2"), resp.getData().get("properties"));
+    }
+
+    @Test
+    void testPropertiesAloneAreAModification() {
+        HomePieceOfFurniture piece = addFurniture("Lamp", 10, 20);
+
+        Response resp = handler.execute(makeRequest(piece.getId(), "properties", props("ha_entity", "light.lamp")),
+                accessor);
+
+        assertTrue(resp.isOk(), resp.getMessage());
+        assertEquals(10f, piece.getX(), 0.01f);
+        assertEquals("Lamp", piece.getName());
+    }
+
+    @Test
+    void testNullRemovesAPropertyAndKeepsTheOthers() {
+        HomePieceOfFurniture piece = addFurniture("Switch", 0, 0);
+        piece.setProperty("ha_entity", "switch.a");
+        piece.setProperty("note", "keep me");
+        piece.setProperty("old", "drop me");
+
+        Response resp = handler.execute(makeRequest(piece.getId(),
+                "properties", props("ha_entity", "switch.b", "old", null)), accessor);
+
+        assertTrue(resp.isOk(), resp.getMessage());
+        assertEquals("switch.b", piece.getProperty("ha_entity"));
+        assertEquals("keep me", piece.getProperty("note"));
+        assertNull(piece.getProperty("old"));
+        assertEquals(Arrays.asList("ha_entity", "note"),
+                Arrays.asList(((Map<?, ?>) resp.getData().get("properties")).keySet().toArray()));
+    }
+
+    @Test
+    void testRemovingTheLastPropertyReportsNone() {
+        HomePieceOfFurniture piece = addFurniture("Switch", 0, 0);
+        piece.setProperty("ha_entity", "switch.a");
+
+        Response resp = handler.execute(makeRequest(piece.getId(), "properties", props("ha_entity", null)), accessor);
+
+        assertTrue(resp.isOk(), resp.getMessage());
+        assertTrue(piece.getPropertyNames().isEmpty());
+        assertNull(resp.getData().get("properties"));
+    }
+
+    @Test
+    void testInvalidPropertiesAreRejectedBeforeAnyChange() {
+        HomePieceOfFurniture piece = addFurniture("Lamp", 0, 0);
+
+        assertTrue(handler.execute(makeRequest(piece.getId(), "x", 99.0, "properties", "ha_entity=light.a"),
+                accessor).isError());
+        assertTrue(handler.execute(makeRequest(piece.getId(), "properties", props("ha_entity", 5)),
+                accessor).isError());
+        assertTrue(handler.execute(makeRequest(piece.getId(), "properties", props(" ", "light.a")),
+                accessor).isError());
+        assertTrue(handler.execute(makeRequest(piece.getId(), "properties", Collections.emptyMap()),
+                accessor).isError());
+
+        assertEquals(0f, piece.getX(), 0.01f);
+        assertTrue(piece.getPropertyNames().isEmpty());
+    }
+
+    @Test
+    void testPropertyChangeIsUndoneByRestoreCheckpoint() {
+        HomePieceOfFurniture piece = addFurniture("Lamp", 0, 0);
+        CheckpointManager checkpoints = new CheckpointManager();
+        CheckpointHandler checkpoint = new CheckpointHandler(checkpoints);
+        checkpoint.execute(new Request("checkpoint", Collections.emptyMap()), accessor);
+
+        handler.execute(makeRequest(piece.getId(), "properties", props("ha_entity", "light.lamp")), accessor);
+        checkpoint.execute(new Request("checkpoint", Collections.emptyMap()), accessor);
+        Response restored = new RestoreCheckpointHandler(checkpoints)
+                .execute(new Request("restore_checkpoint", Collections.emptyMap()), accessor);
+
+        assertTrue(restored.isOk(), restored.getMessage());
+        HomePieceOfFurniture after = home.getFurniture().get(0);
+        assertEquals(piece.getId(), after.getId());
+        assertNull(after.getProperty("ha_entity"));
+    }
+
+    @Test
+    void testPropertyIsSavedInHomeXml() throws Exception {
+        HomePieceOfFurniture piece = addFurniture("Lamp", 0, 0);
+        handler.execute(makeRequest(piece.getId(), "properties", props("ha_entity", "light.a,light.b")), accessor);
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        XMLWriter writer = new XMLWriter(out);
+        new HomeXMLExporter().writeElement(writer, home);
+        writer.flush();
+        String xml = new String(out.toByteArray(), StandardCharsets.UTF_8);
+
+        int pieceStart = xml.indexOf("<pieceOfFurniture ");
+        int pieceEnd = xml.indexOf("</pieceOfFurniture>", pieceStart);
+        assertTrue(pieceStart >= 0 && pieceEnd > pieceStart, xml);
+        assertTrue(xml.substring(pieceStart, pieceEnd).contains("<property name='ha_entity' value='light.a,light.b'/>"),
+                xml);
+    }
+
+    @Test
+    void testSchemaDescribesProperties() {
+        @SuppressWarnings("unchecked")
+        Map<String, Object> props = (Map<String, Object>) handler.getSchema().get("properties");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> def = (Map<String, Object>) props.get("properties");
+        assertEquals("object", def.get("type"));
+        assertNotNull(def.get("additionalProperties"));
+    }
+
+    private static Map<String, Object> props(Object... keyValues) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        for (int i = 0; i < keyValues.length; i += 2) {
+            map.put((String) keyValues[i], keyValues[i + 1]);
+        }
+        return map;
     }
 
     private HomePieceOfFurniture addFurniture(String name, float x, float y) {

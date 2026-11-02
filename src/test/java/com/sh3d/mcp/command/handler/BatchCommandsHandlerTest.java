@@ -2,6 +2,7 @@ package com.sh3d.mcp.command.handler;
 import com.sh3d.mcp.command.CommandRegistry;
 
 import com.eteks.sweethome3d.model.Home;
+import com.eteks.sweethome3d.model.HomePieceOfFurniture;
 import com.eteks.sweethome3d.model.Wall;
 import com.sh3d.mcp.bridge.CommandException;
 import com.sh3d.mcp.bridge.CheckpointManager;
@@ -414,6 +415,29 @@ class BatchCommandsHandlerTest {
     }
 
     // --- Helpers ---
+
+    @Test
+    void testModifyFurniturePropertiesThroughBatch() {
+        registry.register("modify_furniture", new ModifyFurnitureHandler());
+        HomePieceOfFurniture a = TestFixtures.addFurniture(home, "Lamp A", 0, 0);
+        HomePieceOfFurniture b = TestFixtures.addFurniture(home, "Lamp B", 100, 0);
+
+        Response resp = executeBatch(Arrays.asList(
+                cmd("modify_furniture", tag(a.getId(), "light.a")),
+                cmd("modify_furniture", tag(b.getId(), "light.b,light.b_2"))));
+
+        assertTrue(resp.isOk(), resp.getMessage());
+        assertEquals(2, resp.getData().get("succeeded"));
+        assertEquals("light.a", a.getProperty("ha_entity"));
+        assertEquals("light.b,light.b_2", b.getProperty("ha_entity"));
+    }
+
+    private static Map<String, Object> tag(String id, String entity) {
+        Map<String, Object> params = new LinkedHashMap<>();
+        params.put("id", id);
+        params.put("properties", Collections.singletonMap("ha_entity", entity));
+        return params;
+    }
 
     private Response executeBatch(List<? extends Map<String, Object>> commands) {
         Map<String, Object> params = new LinkedHashMap<>();

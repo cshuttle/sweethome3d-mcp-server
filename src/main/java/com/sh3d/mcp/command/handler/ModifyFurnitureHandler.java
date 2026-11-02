@@ -39,10 +39,20 @@ public class ModifyFurnitureHandler implements CommandHandler, CommandDescriptor
         }
 
         Map<String, Object> params = request.getParams();
-        boolean hasModifiable = MODIFIABLE_KEYS.stream().anyMatch(params::containsKey);
+        boolean hasModifiable = MODIFIABLE_KEYS.stream().anyMatch(params::containsKey)
+                || params.containsKey("properties");
         if (!hasModifiable) {
             return Response.error("No modifiable properties provided. "
-                    + "Supported: x, y, angle, elevation, width, depth, height, color, visible, mirrored, name");
+                    + "Supported: x, y, angle, elevation, width, depth, height, color, visible, mirrored, name, "
+                    + "properties");
+        }
+
+        // Validate custom properties before EDT
+        final Map<String, String> propertiesToSet;
+        try {
+            propertiesToSet = parseProperties(params);
+        } catch (IllegalArgumentException e) {
+            return Response.error(e.getMessage());
         }
 
         // Validate color format before EDT
@@ -112,11 +122,19 @@ public class ModifyFurnitureHandler implements CommandHandler, CommandDescriptor
                 }
             }
 
+            // Custom properties (HomeObject.setProperty: saved in Home.xml as <property name value/>)
+            if (propertiesToSet != null) {
+                for (Map.Entry<String, String> e : propertiesToSet.entrySet()) {
+                    piece.setProperty(e.getKey(), e.getValue());
+                }
+            }
+
             // Build response with current state
             Map<String, Object> result = FormatUtil.buildFurnitureInfo(piece);
             result.put("color", colorToHex(piece.getColor()));
             result.put("visible", piece.isVisible());
             result.put("mirrored", piece.isModelMirrored());
+            result.put("properties", FormatUtil.buildProperties(piece));
             return result;
         });
 
@@ -127,12 +145,48 @@ public class ModifyFurnitureHandler implements CommandHandler, CommandDescriptor
         return Response.ok(data);
     }
 
+    /**
+     * Reads the optional 'properties' object: property name to a string value, or null to remove it.
+     * Returns null when the parameter is absent.
+     */
+    static Map<String, String> parseProperties(Map<String, Object> params) {
+        if (!params.containsKey("properties")) {
+            return null;
+        }
+        Object raw = params.get("properties");
+        if (!(raw instanceof Map)) {
+            throw new IllegalArgumentException("'properties' must be an object of property name to "
+                    + "string value (null removes the property), e.g. {\"ha_entity\": \"light.porch\"}");
+        }
+        Map<?, ?> map = (Map<?, ?>) raw;
+        if (map.isEmpty()) {
+            throw new IllegalArgumentException("'properties' must name at least one property");
+        }
+        Map<String, String> out = new LinkedHashMap<>();
+        for (Map.Entry<?, ?> e : map.entrySet()) {
+            Object name = e.getKey();
+            if (!(name instanceof String) || ((String) name).trim().isEmpty()) {
+                throw new IllegalArgumentException("Property names in 'properties' must be non-empty strings");
+            }
+            Object value = e.getValue();
+            if (value != null && !(value instanceof String)) {
+                throw new IllegalArgumentException("Property '" + name + "' must be a string or null (to remove it), "
+                        + "got " + value);
+            }
+            out.put((String) name, (String) value);
+        }
+        return out;
+    }
+
     @Override
     public String getDescription() {
         return "Modifies properties of existing furniture by ID. Use get_state to find furniture IDs. "
                 + "Only provided properties are changed; omitted properties remain unchanged. "
                 + "Coordinates are in centimeters, angle in degrees. "
-                + "Color is a hex string like '#FF0000' (red) or null to reset to default.";
+                + "Color is a hex string like '#FF0000' (red) or null to reset to default. "
+                + "properties sets custom string properties on the piece ({name: value}; null removes one), "
+                + "which Sweet Home 3D saves in the home and get_state/query_state report as 'properties'; "
+                + "other properties are kept. Undo with checkpoint / restore_checkpoint.";
     }
 
     @Override
@@ -150,7 +204,19 @@ public class ModifyFurnitureHandler implements CommandHandler, CommandDescriptor
                 .bool("visible", "Whether furniture is visible in the scene")
                 .bool("mirrored", "Whether furniture model is mirrored")
                 .string("name", "New display name for the furniture")
+                .raw("properties", propertiesSchema())
                 .build();
+    }
+
+    private static Map<String, Object> propertiesSchema() {
+        Map<String, Object> value = new LinkedHashMap<>();
+        value.put("type", Arrays.asList("string", "null"));
+        Map<String, Object> def = new LinkedHashMap<>();
+        def.put("type", "object");
+        def.put("description", "Custom properties to set, name to string value; null removes that property. "
+                + "Properties not named are kept. Example: {\"ha_entity\": \"light.porch,light.porch_2\"}");
+        def.put("additionalProperties", value);
+        return def;
     }
 
 }
