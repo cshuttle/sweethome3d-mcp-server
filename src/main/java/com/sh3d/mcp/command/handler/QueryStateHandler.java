@@ -396,7 +396,8 @@ public class QueryStateHandler implements CommandHandler, CommandDescriptor {
                 + "visible (own visibility flag and a viewable level), fields (properties to keep; id is always kept; "
                 + "'properties' is a piece's custom properties, absent when it has none) "
                 + "and limit (items per kind). Returns a list per kind plus 'matched' counts before the limit and "
-                + "'truncated'. Prefer this to get_state on large homes.";
+                + "'truncated'. Prefer this to get_state on large homes. A light piece also has 'lightPower' "
+                + "(percent) and 'lightSources' (x, y, z, color, diameter) among its fields; a plain piece has neither.";
     }
 
     @Override
