@@ -349,6 +349,20 @@ class QueryStateHandlerTest {
         assertEquals(t.get("properties"), byId(list(state, "furniture"), table.getId()).get("properties"));
     }
 
+    @Test
+    void testDropOnTopElevationIsReported() {
+        com.sh3d.mcp.command.util.FurnitureUtil.setDropOnTopElevation(table, -1f);
+
+        Response resp = execute("kinds", list("furniture"), "fields", list("dropOnTopElevation"));
+
+        assertEquals(-1.0, ((Number) byId(list(resp, "furniture"), table.getId()).get("dropOnTopElevation")).doubleValue(), 1e-6);
+        for (Map<String, Object> item : list(resp, "furniture")) {
+            assertTrue(item.containsKey("dropOnTopElevation"), "every piece reports it");
+        }
+        Response state = new GetStateHandler().execute(new Request("get_state", Collections.emptyMap()), accessor);
+        assertEquals(-1.0, ((Number) byId(list(state, "furniture"), table.getId()).get("dropOnTopElevation")).doubleValue(), 1e-6);
+    }
+
     private static Map<String, Object> byId(List<Map<String, Object>> items, String id) {
         for (Map<String, Object> item : items) {
             if (id.equals(item.get("id"))) return item;
