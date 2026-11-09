@@ -2,6 +2,7 @@ package com.sh3d.mcp.command.handler;
 
 import com.eteks.sweethome3d.model.CatalogPieceOfFurniture;
 import com.eteks.sweethome3d.model.Home;
+import com.eteks.sweethome3d.model.HomeFurnitureGroup;
 import com.eteks.sweethome3d.model.HomePieceOfFurniture;
 import com.eteks.sweethome3d.io.HomeXMLExporter;
 import com.eteks.sweethome3d.io.XMLWriter;
@@ -433,6 +434,50 @@ class ModifyFurnitureHandlerTest {
 
         assertTrue(resp.isError());
         assertEquals(1f, piece.getDropOnTopElevation(), 0.001f);
+    }
+
+    @Test
+    void testNegativeDropOnTopElevationOnAGroupSwitchesOffEveryPiece() {
+        HomePieceOfFurniture a = piece("Foundation", 0, 0), b = piece("Foundation", 100, 0), c = piece("Foundation", 0, 100);
+        HomeFurnitureGroup inner = new HomeFurnitureGroup(Arrays.asList(b, c), "Inner");
+        HomeFurnitureGroup group = new HomeFurnitureGroup(Arrays.asList(a, inner), "Foundation (above grade)");
+        home.addPieceOfFurniture(group);
+        assertTrue(group.getDropOnTopElevation() > 0);
+
+        Response resp = handler.execute(makeRequest(group.getId(), "dropOnTopElevation", -1.0), accessor);
+
+        assertTrue(resp.isOk(), resp.getMessage());
+        for (HomePieceOfFurniture p : Arrays.asList(a, b, c, inner, group)) {
+            assertTrue(p.getDropOnTopElevation() < 0, p.getName());
+        }
+        assertEquals(-1.0, ((Number) resp.getData().get("dropOnTopElevation")).doubleValue(), 1e-6);
+        // as the home is loaded: the group's value is computed again from its pieces, and stays negative
+        HomeFurnitureGroup reloaded = new HomeFurnitureGroup(Arrays.asList(a.clone(), new HomeFurnitureGroup(
+                Arrays.asList(b.clone(), c.clone()), "Inner")), "Foundation (above grade)");
+        assertTrue(reloaded.getDropOnTopElevation() < 0);
+    }
+
+    @Test
+    void testNonNegativeDropOnTopElevationOnAGroupIsRefused() {
+        HomePieceOfFurniture a = piece("Chair", 0, 0);
+        HomeFurnitureGroup group = new HomeFurnitureGroup(Collections.singletonList(a), "Chairs");
+        home.addPieceOfFurniture(group);
+        float before = group.getDropOnTopElevation();
+
+        Response resp = handler.execute(makeRequest(group.getId(), "dropOnTopElevation", 0.5, "x", 300.0), accessor);
+
+        assertTrue(resp.isError());
+        assertEquals(before, group.getDropOnTopElevation(), 1e-6);
+        assertEquals(1f, a.getDropOnTopElevation(), 1e-6);
+        assertNotEquals(300f, group.getX(), 0.01f);
+    }
+
+    private static HomePieceOfFurniture piece(String name, float x, float y) {
+        HomePieceOfFurniture p = new HomePieceOfFurniture(
+                new CatalogPieceOfFurniture(name, null, null, 50f, 50f, 50f, true, false));
+        p.setX(x);
+        p.setY(y);
+        return p;
     }
 
     private HomePieceOfFurniture addFurniture(String name, float x, float y) {

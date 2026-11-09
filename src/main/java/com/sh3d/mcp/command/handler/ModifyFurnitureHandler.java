@@ -7,6 +7,7 @@ import com.sh3d.mcp.command.util.LightUtil;
 import com.sh3d.mcp.command.util.FurnitureUtil;
 
 import com.eteks.sweethome3d.model.Home;
+import com.eteks.sweethome3d.model.HomeFurnitureGroup;
 import com.eteks.sweethome3d.model.HomeLight;
 import com.eteks.sweethome3d.model.HomePieceOfFurniture;
 import com.sh3d.mcp.bridge.HomeAccessor;
@@ -85,6 +86,11 @@ public class ModifyFurnitureHandler implements CommandHandler, CommandDescriptor
 
             if (piece == null) {
                 return null;
+            }
+            if (params.containsKey("dropOnTopElevation") && piece instanceof HomeFurnitureGroup
+                    && request.getFloat("dropOnTopElevation") >= 0) {
+                return "A group's dropOnTopElevation comes from its pieces (Sweet Home 3D computes it); "
+                        + "pass a negative value to switch off every piece in the group, or ungroup to set one";
             }
 
             // Light: check everything first, then replace the piece by a real light (asLight) and set its sources
@@ -243,7 +249,8 @@ public class ModifyFurnitureHandler implements CommandHandler, CommandDescriptor
                 + "position, size, name and properties. Sweet Home 3D then lights its 3D view and photos from it. "
                 + "dropOnTopElevation sets where a piece dropped on this one lands, as a fraction of its height "
                 + "(1, the default, is its top); a negative value makes the app ignore this piece as a drop target, "
-                + "for a large generated piece (walls, trim, wiring) whose outline encloses others. "
+                + "for a large generated piece (walls, trim, wiring) whose outline encloses others; on a group, a "
+                + "negative value switches off every piece in it (the app computes a group's value from its pieces). "
                 + "Undo with checkpoint / restore_checkpoint.";
     }
 
