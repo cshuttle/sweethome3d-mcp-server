@@ -152,6 +152,7 @@ public class GetStateHandler implements CommandHandler, CommandDescriptor {
         item.put("width", round2(piece.getWidth()));
         item.put("depth", round2(piece.getDepth()));
         item.put("height", round2(piece.getHeight()));
+        item.put("dropOnTopElevation", round2(piece.getDropOnTopElevation()));
         item.put("isDoorOrWindow", piece.isDoorOrWindow());
         item.put("visible", piece.isVisible());
         LightUtil.putLightInfo(item, piece);  // lightPower and lightSources, lights only
