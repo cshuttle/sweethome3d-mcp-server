@@ -350,6 +350,7 @@ public final class LightUtil {
         light.setHeightInPlan(piece.getHeightInPlan());
         light.setMovable(piece.isMovable());
         light.setVisible(piece.isVisible());
+        FurnitureUtil.setDropOnTopElevation(light, piece.getDropOnTopElevation());
 
         // Appearance
         if (piece.getColor() != null) {

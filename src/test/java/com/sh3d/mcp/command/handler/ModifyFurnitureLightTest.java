@@ -289,6 +289,7 @@ class ModifyFurnitureLightTest {
         plain.setVisible(false);
         plain.setModelMirrored(true);
         plain.setProperty("ha_entity", "light.kitchen_kitchen_flood_1");
+        com.sh3d.mcp.command.util.FurnitureUtil.setDropOnTopElevation(plain, -1f);
         String id = plain.getId();
 
         Response resp = handler.execute(request(id, "asLight", true), accessor);
@@ -317,6 +318,7 @@ class ModifyFurnitureLightTest {
         assertFalse(now.isVisible());
         assertTrue(now.isModelMirrored());
         assertEquals("light.kitchen_kitchen_flood_1", now.getProperty("ha_entity"));
+        assertEquals(-1f, now.getDropOnTopElevation(), 1e-6, "never a drop target, as before");
         assertEquals("test#bulb", now.getCatalogId());
         // the catalog light's own sources and the default power
         HomeLight light = (HomeLight) now;
