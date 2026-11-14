@@ -245,14 +245,15 @@ class ModifyFurnitureLightTest {
     }
 
     @Test
-    void testLightParametersOnAnOrdinaryPieceSayItIsNotALight() {
+    void testLightParametersOnAnOrdinaryPieceSayItIsNotALightAndNameAsLight() {
         HomePieceOfFurniture plain = addPlain(table, 10, 20);
 
         Response resp = handler.execute(request(plain.getId(), "lightPower", 50), accessor);
 
         assertTrue(resp.isError());
         assertTrue(resp.getMessage().contains("is not a light"), resp.getMessage());
-        assertFalse(resp.getMessage().contains("Pass asLight"), resp.getMessage());
+        assertTrue(resp.getMessage().contains("asLight: true"), "any piece can be converted: " + resp.getMessage());
+        assertSame(plain, home.getFurniture().get(0), "the piece is untouched");
     }
 
     @Test
@@ -362,18 +363,25 @@ class ModifyFurnitureLightTest {
     }
 
     @Test
-    void testAsLightOnAPieceThatIsNotACatalogLightIsRefused() {
+    void testAsLightOnAPieceWhoseCatalogItemIsNotALightBuildsTheLightFromThePiece() {
         HomePieceOfFurniture plain = addPlain(table, 10, 20);
+        String id = plain.getId();
 
-        Response resp = handler.execute(request(plain.getId(), "asLight", true), accessor);
+        Response resp = handler.execute(request(id, "asLight", true), accessor);
 
-        assertTrue(resp.isError());
-        assertTrue(resp.getMessage().contains("not a catalog light"), resp.getMessage());
-        assertSame(plain, home.getFurniture().get(0));
+        assertTrue(resp.isOk(), resp.getMessage());
+        assertEquals(Boolean.TRUE, resp.getData().get("converted"));
+        HomeLight light = (HomeLight) home.getFurniture().get(0);
+        assertEquals(id, light.getId());
+        assertEquals("test#table", light.getCatalogId(), "catalog id kept");
+        assertEquals("Test table", light.getName());
+        assertEquals(100f, light.getWidth(), 1e-6);
+        assertEquals(0, light.getLightSources().length, "no point sources");
+        assertEquals(0.5f, light.getPower(), 1e-6, "Sweet Home 3D's default power");
     }
 
     @Test
-    void testAsLightOnAPieceWithoutCatalogIdIsRefused() {
+    void testAsLightOnAPieceWithoutCatalogIdBuildsTheLightFromThePiece() {
         HomePieceOfFurniture imported = new HomePieceOfFurniture(
                 new CatalogPieceOfFurniture("Imported", null, null, 10f, 10f, 10f, true, false));
         imported.setCatalogId(null);
@@ -381,9 +389,12 @@ class ModifyFurnitureLightTest {
 
         Response resp = handler.execute(request(imported.getId(), "asLight", true), accessor);
 
-        assertTrue(resp.isError());
-        assertTrue(resp.getMessage().contains("no catalogId"), resp.getMessage());
-        assertSame(imported, home.getFurniture().get(0));
+        assertTrue(resp.isOk(), resp.getMessage());
+        HomeLight light = (HomeLight) home.getFurniture().get(0);
+        assertEquals(imported.getId(), light.getId());
+        assertNull(light.getCatalogId());
+        assertEquals(0, light.getLightSources().length);
+        assertEquals(Collections.emptyList(), resp.getData().get("lightSources"));
     }
 
     @Test
