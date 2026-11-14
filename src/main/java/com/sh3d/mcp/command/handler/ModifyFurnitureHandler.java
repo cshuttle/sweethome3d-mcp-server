@@ -253,6 +253,11 @@ public class ModifyFurnitureHandler implements CommandHandler, CommandDescriptor
                 + "A piece placed with place_furniture from a catalog light is a plain piece with no sources and "
                 + "no power: asLight: true first replaces it, in place, by a real light with the same id, level, "
                 + "position, size, name and properties. Sweet Home 3D then lights its 3D view and photos from it. "
+                + "asLight: true on any other piece (a generated or imported model, which has no catalog id, or a "
+                + "piece whose catalog item is not a light) builds the light from the piece itself: same id, name, "
+                + "model, size, angle, place, level and other properties, no point sources and the default power "
+                + "(50%); give it lightSourceMaterialNames or lightSources, in the same call or later. Doors, "
+                + "windows and groups cannot become lights. "
                 + "dropOnTopElevation sets where a piece dropped on this one lands, as a fraction of its height "
                 + "(1, the default, is its top); a negative value makes the app ignore this piece as a drop target, "
                 + "for a large generated piece (walls, trim, wiring) whose outline encloses others; on a group, a "
@@ -300,9 +305,12 @@ public class ModifyFurnitureHandler implements CommandHandler, CommandDescriptor
                                 + "unknown name is refused with the model's material names; [] clears them")
                         .itemsOfType("string")
                         .build())
-                .bool("asLight", "Replace a plain piece of a catalog light (what place_furniture creates) by a real "
-                        + "light first, keeping its id, level, position, size, name and properties. Without it the "
-                        + "light parameters are refused on a plain piece")
+                .bool("asLight", "Replace a plain piece by a real light first, keeping its id, level, position, "
+                        + "size, angle, name, model and properties. A plain piece of a catalog light (what "
+                        + "place_furniture creates) gets the catalog light's sources; any other piece, including one "
+                        + "with no catalog id (generated or imported models), becomes a light of its own with no "
+                        + "point sources and the default power. Without it the light parameters are refused on a "
+                        + "plain piece")
                 .number("dropOnTopElevation", "Where a dropped piece lands, as a fraction of this piece's height "
                         + "(1 = its top, the default); negative: never a drop target")
                 .build();
