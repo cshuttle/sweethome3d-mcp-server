@@ -3,6 +3,7 @@ package com.sh3d.mcp.command.util;
 import com.eteks.sweethome3d.j3d.ModelManager;
 import com.eteks.sweethome3d.model.CatalogLight;
 import com.eteks.sweethome3d.model.CatalogPieceOfFurniture;
+import com.eteks.sweethome3d.model.Content;
 import com.eteks.sweethome3d.model.FurnitureCatalog;
 import com.eteks.sweethome3d.model.Home;
 import com.eteks.sweethome3d.model.HomeFurnitureGroup;
@@ -10,11 +11,14 @@ import com.eteks.sweethome3d.model.HomeLight;
 import com.eteks.sweethome3d.model.HomeMaterial;
 import com.eteks.sweethome3d.model.HomePieceOfFurniture;
 import com.eteks.sweethome3d.model.Level;
+import com.eteks.sweethome3d.model.Light;
 import com.eteks.sweethome3d.model.LightSource;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -31,7 +35,9 @@ import java.util.TreeSet;
  * dialog's "Light power (%)"). The app lights its 3D view with them and
  * {@code PhotoRenderer} emits light from them. {@code place_furniture} creates a plain
  * {@link HomePieceOfFurniture} even for a catalog light, so a "light source" placed by it has no sources
- * and no power; {@link #prepare} replaces such a piece by a real light when asked to.
+ * and no power; {@link #prepare} replaces such a piece by a real light when asked to. Any other piece, such as a
+ * generated model with no catalog id, can become a light too: the light is then built from the piece itself, with
+ * no point sources and Sweet Home 3D's default power.
  *
  * <p>A light shines either from its points or through its <em>glowing materials</em>: materials of its own
  * model, named in {@link HomeLight#getLightSourceMaterialNames()} (Sweet Home 3D's "light source materials"),
@@ -66,7 +72,7 @@ public final class LightUtil {
         public final LightSource[] sources;
         /** New power, 0..1, or null. */
         public final Float power;
-        /** Replace a plain piece of a catalog light by a real light first. */
+        /** Replace a plain piece by a real light first (from its catalog light, or from the piece itself). */
         public final boolean asLight;
         /** New glowing materials (names of the piece's model's materials; empty clears them), or null. */
         public final String[] materialNames;
@@ -291,22 +297,19 @@ public final class LightUtil {
             }
             return fail(what + " is not a light" + (piece.getCatalogId() != null
                     ? " (catalog item '" + piece.getCatalogId() + "' is not a catalog light)" : "")
-                    + (edit.materialNames != null
-                    ? "; glowing materials belong to a light: convert it with asLight: true (in the same call) first"
-                    : ""));
+                    + "; pass asLight: true (in the same call) to make it a light first, built from the piece itself "
+                    + "with no point sources and the default power");
         }
         if (piece instanceof HomeFurnitureGroup) {
             return fail(what + " is a group; ungroup it first and convert its pieces");
         }
-        if (catalogLight == null) {
-            return fail(what + " cannot become a light: "
-                    + (piece.getCatalogId() == null
-                    ? "it has no catalogId to find a catalog light by"
-                    : "catalog item '" + piece.getCatalogId() + "' is not a catalog light or not in the catalog"));
+        if (piece.isDoorOrWindow()) {
+            return fail(what + " is a door or window; it cannot become a light");
         }
         HomeLight replacement;
         try {
-            replacement = convert(piece, catalogLight);
+            // A catalog light gives its own sources and power; any other piece becomes a light of its own
+            replacement = convert(piece, catalogLight != null ? catalogLight : new PieceLight(piece));
         } catch (IllegalStateException e) {
             return fail(what + " cannot become a light: " + e.getMessage());
         }
@@ -381,14 +384,16 @@ public final class LightUtil {
     }
 
     /**
-     * Builds the light that replaces a plain piece: the catalog light's own sources and power, with the same id
-     * and everything else copied from the piece, so only its class changes. The catalog's
-     * {@code dropOnTopElevation} is kept (Sweet Home 3D 7.5 has no setter for it).
+     * Builds the light that replaces a plain piece: {@code source}'s sources, glowing materials and power, with the
+     * same id and everything else copied from the piece, so only its class changes. {@code source} is the piece's
+     * catalog light, or a {@link PieceLight} of the piece itself. The flags a piece takes from its catalog item
+     * and that have no setter (resizable, deformable, texturable, horizontally rotatable) come from {@code source}.
      *
      * @throws IllegalStateException when a value cannot be copied (e.g. a colour on a piece that is not texturable)
      */
-    static HomeLight convert(HomePieceOfFurniture piece, CatalogLight catalogLight) {
-        HomeLight light = new HomeLight(piece.getId(), catalogLight);
+    static HomeLight convert(HomePieceOfFurniture piece, Light source) {
+        HomeLight light = new HomeLight(piece.getId(), source);
+        light.setCatalogId(piece.getCatalogId());
         light.setName(piece.getName());
         light.setNameVisible(piece.isNameVisible());
         light.setNameXOffset(piece.getNameXOffset());
@@ -464,6 +469,59 @@ public final class LightUtil {
             }
         }
         return light;
+    }
+
+    /**
+     * A piece seen as a light of its own, to build a {@link HomeLight} from with {@link #convert}: every property
+     * is the piece's, with no point sources, no glowing materials and (from {@link HomeLight}'s constructor)
+     * Sweet Home 3D's default power. This is how a piece that came from no catalog light (a generated or imported
+     * model) becomes a light: {@code HomeLight}'s constructor takes a {@link Light}, and reading the piece through
+     * this view keeps even the catalog-only flags (deformable, width/depth deformable, texturable) that have no
+     * setters.
+     */
+    static final class PieceLight implements Light {
+        private final HomePieceOfFurniture piece;
+
+        PieceLight(HomePieceOfFurniture piece) {
+            this.piece = piece;
+        }
+
+        @Override public LightSource[] getLightSources() { return new LightSource[0]; }
+        @Override public String[] getLightSourceMaterialNames() { return new String[0]; }
+
+        @Override public String getName() { return piece.getName(); }
+        @Override public String getDescription() { return piece.getDescription(); }
+        @Override public String getInformation() { return piece.getInformation(); }
+        @Override public String getLicense() { return piece.getLicense(); }
+        @Override public float getDepth() { return piece.getDepth(); }
+        @Override public float getHeight() { return piece.getHeight(); }
+        @Override public float getWidth() { return piece.getWidth(); }
+        @Override public float getElevation() { return piece.getElevation(); }
+        @Override public float getDropOnTopElevation() { return piece.getDropOnTopElevation(); }
+        @Override public boolean isMovable() { return piece.isMovable(); }
+        @Override public boolean isDoorOrWindow() { return piece.isDoorOrWindow(); }
+        @Override public Content getIcon() { return piece.getIcon(); }
+        @Override public Content getPlanIcon() { return piece.getPlanIcon(); }
+        @Override public Content getModel() { return piece.getModel(); }
+        @Override public int getModelFlags() { return piece.getModelFlags(); }
+        @Override public Long getModelSize() { return piece.getModelSize(); }
+        @Override public float[][] getModelRotation() { return piece.getModelRotation(); }
+        @Override public String getStaircaseCutOutShape() { return piece.getStaircaseCutOutShape(); }
+        @Override public String getCreator() { return piece.getCreator(); }
+        @Override public boolean isBackFaceShown() { return piece.isBackFaceShown(); }
+        @Override public Integer getColor() { return piece.getColor(); }
+        @Override public boolean isResizable() { return piece.isResizable(); }
+        @Override public boolean isDeformable() { return piece.isDeformable(); }
+        @Override public boolean isWidthDepthDeformable() { return piece.isWidthDepthDeformable(); }
+        @Override public boolean isTexturable() { return piece.isTexturable(); }
+        @Override public boolean isHorizontallyRotatable() { return piece.isHorizontallyRotatable(); }
+        @Override public BigDecimal getPrice() { return piece.getPrice(); }
+        @Override public BigDecimal getValueAddedTaxPercentage() { return piece.getValueAddedTaxPercentage(); }
+        @Override public String getCurrency() { return piece.getCurrency(); }
+        @Override public String getProperty(String name) { return piece.getProperty(name); }
+        @Override public Collection<String> getPropertyNames() { return piece.getPropertyNames(); }
+        @Override public Content getContentProperty(String name) { return piece.getContentProperty(name); }
+        @Override public boolean isContentProperty(String name) { return piece.isContentProperty(name); }
     }
 
     /**
