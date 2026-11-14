@@ -397,7 +397,8 @@ public class QueryStateHandler implements CommandHandler, CommandDescriptor {
                 + "'properties' is a piece's custom properties, absent when it has none) "
                 + "and limit (items per kind). Returns a list per kind plus 'matched' counts before the limit and "
                 + "'truncated'. Prefer this to get_state on large homes. A light piece also has 'lightPower' "
-                + "(percent) and 'lightSources' (x, y, z, color, diameter) among its fields; a plain piece has neither.";
+                + "(percent), 'lightSources' (x, y, z, color, diameter) and 'lightSourceMaterialNames' (its glowing "
+                + "materials, [] when none) among its fields; a plain piece has none of these.";
     }
 
     @Override

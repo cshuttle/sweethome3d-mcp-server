@@ -155,7 +155,7 @@ public class GetStateHandler implements CommandHandler, CommandDescriptor {
         item.put("dropOnTopElevation", round2(piece.getDropOnTopElevation()));
         item.put("isDoorOrWindow", piece.isDoorOrWindow());
         item.put("visible", piece.isVisible());
-        LightUtil.putLightInfo(item, piece);  // lightPower and lightSources, lights only
+        LightUtil.putLightInfo(item, piece);  // lightPower, lightSources, lightSourceMaterialNames: lights only
 
         if (piece instanceof HomeFurnitureGroup) {
             item.put("isGroup", true);
@@ -284,8 +284,9 @@ public class GetStateHandler implements CommandHandler, CommandDescriptor {
     @Override
     public String getDescription() {
         return "Returns the full state of the Sweet Home 3D scene: walls with coordinates, "
-                + "furniture with positions and IDs (a light also lightPower in percent and lightSources, "
-                + "a plain piece neither), rooms with polygons, labels, dimension lines, "
+                + "furniture with positions and IDs (a light also lightPower in percent, lightSources and "
+                + "lightSourceMaterialNames, its glowing materials; a plain piece none of these), "
+                + "rooms with polygons, labels, dimension lines, "
                 + "the texture on each wall side and room surface (name, plus <surface>TextureInfo with "
                 + "size, angle, scale and xOffset/yOffset in cm, as apply_texture takes them), "
                 + "camera settings, environment (ground, sky, light, wallsAlpha, drawingMode), "

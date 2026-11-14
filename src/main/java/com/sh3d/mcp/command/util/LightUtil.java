@@ -1,20 +1,26 @@
 package com.sh3d.mcp.command.util;
 
+import com.eteks.sweethome3d.j3d.ModelManager;
 import com.eteks.sweethome3d.model.CatalogLight;
 import com.eteks.sweethome3d.model.CatalogPieceOfFurniture;
 import com.eteks.sweethome3d.model.FurnitureCatalog;
 import com.eteks.sweethome3d.model.Home;
 import com.eteks.sweethome3d.model.HomeFurnitureGroup;
 import com.eteks.sweethome3d.model.HomeLight;
+import com.eteks.sweethome3d.model.HomeMaterial;
 import com.eteks.sweethome3d.model.HomePieceOfFurniture;
 import com.eteks.sweethome3d.model.Level;
 import com.eteks.sweethome3d.model.LightSource;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * Light support for {@code modify_furniture}, {@code get_state} and {@code query_state}.
@@ -26,6 +32,12 @@ import java.util.Map;
  * {@code PhotoRenderer} emits light from them. {@code place_furniture} creates a plain
  * {@link HomePieceOfFurniture} even for a catalog light, so a "light source" placed by it has no sources
  * and no power; {@link #prepare} replaces such a piece by a real light when asked to.
+ *
+ * <p>A light shines either from its points or through its <em>glowing materials</em>: materials of its own
+ * model, named in {@link HomeLight#getLightSourceMaterialNames()} (Sweet Home 3D's "light source materials"),
+ * whose whole surface gives off the light. {@code PhotoRenderer} makes those materials emit and adds no point
+ * light for such a light. Sweet Home 3D saves them in Home.xml ({@code <lightSourceMaterial name='…'/>} under
+ * {@code <light>}).
  */
 public final class LightUtil {
 
@@ -33,9 +45,11 @@ public final class LightUtil {
     public static final String LIGHT_SOURCES = "lightSources";
     public static final String LIGHT_POWER = "lightPower";
     public static final String AS_LIGHT = "asLight";
+    public static final String LIGHT_SOURCE_MATERIAL_NAMES = "lightSourceMaterialNames";
 
     /** The {@code modify_furniture} parameters this class handles. */
-    public static final List<String> KEYS = Arrays.asList(LIGHT_COLOR, LIGHT_SOURCES, LIGHT_POWER, AS_LIGHT);
+    public static final List<String> KEYS = Arrays.asList(LIGHT_COLOR, LIGHT_SOURCES, LIGHT_POWER, AS_LIGHT,
+            LIGHT_SOURCE_MATERIAL_NAMES);
 
     private static final List<String> SOURCE_FIELDS = Arrays.asList("x", "y", "z", "color", "diameter");
 
@@ -54,22 +68,25 @@ public final class LightUtil {
         public final Float power;
         /** Replace a plain piece of a catalog light by a real light first. */
         public final boolean asLight;
+        /** New glowing materials (names of the piece's model's materials; empty clears them), or null. */
+        public final String[] materialNames;
 
-        private Edit(Integer color, LightSource[] sources, Float power, boolean asLight) {
+        private Edit(Integer color, LightSource[] sources, Float power, boolean asLight, String[] materialNames) {
             this.color = color;
             this.sources = sources;
             this.power = power;
             this.asLight = asLight;
+            this.materialNames = materialNames;
         }
 
         /** True when the request carries any light parameter, including {@code asLight: false}. */
         public boolean isPresent() {
-            return color != null || sources != null || power != null || asLight;
+            return changesLight() || asLight;
         }
 
-        /** True when the request changes a light's sources or power. */
+        /** True when the request changes a light's sources, power or glowing materials. */
         public boolean changesLight() {
-            return color != null || sources != null || power != null;
+            return color != null || sources != null || power != null || materialNames != null;
         }
     }
 
@@ -123,7 +140,28 @@ public final class LightUtil {
             }
             asLight = (Boolean) raw;
         }
-        return new Edit(color, sources, power, asLight);
+        String[] materialNames = null;
+        if (params.containsKey(LIGHT_SOURCE_MATERIAL_NAMES)) {
+            materialNames = parseMaterialNames(params.get(LIGHT_SOURCE_MATERIAL_NAMES));
+        }
+        return new Edit(color, sources, power, asLight, materialNames);
+    }
+
+    /** A list of non-blank names, duplicates dropped, order kept; an empty list is valid (it clears them). */
+    private static String[] parseMaterialNames(Object raw) {
+        String expected = "Parameter '" + LIGHT_SOURCE_MATERIAL_NAMES + "' must be an array of material names "
+                + "of the piece's model (strings; an empty array clears them), got ";
+        if (!(raw instanceof List)) {
+            throw new IllegalArgumentException(expected + raw);
+        }
+        Set<String> names = new LinkedHashSet<>();
+        for (Object name : (List<?>) raw) {
+            if (!(name instanceof String) || ((String) name).trim().isEmpty()) {
+                throw new IllegalArgumentException(expected + raw);
+            }
+            names.add((String) name);
+        }
+        return names.toArray(new String[0]);
     }
 
     private static Integer parseColor(Object raw, String what) {
@@ -188,7 +226,10 @@ public final class LightUtil {
 
     // ======================== Reporting ========================
 
-    /** Adds {@code lightPower} (percent) and {@code lightSources} to {@code info} when {@code piece} is a light. */
+    /**
+     * Adds {@code lightPower} (percent), {@code lightSources} and {@code lightSourceMaterialNames} (the glowing
+     * materials, an empty list when there are none) to {@code info} when {@code piece} is a light.
+     */
     public static void putLightInfo(Map<String, Object> info, HomePieceOfFurniture piece) {
         if (!(piece instanceof HomeLight)) {
             return;
@@ -206,6 +247,9 @@ public final class LightUtil {
             sources.add(s);
         }
         info.put("lightSources", sources);
+        String[] materialNames = light.getLightSourceMaterialNames();
+        info.put(LIGHT_SOURCE_MATERIAL_NAMES,
+                materialNames != null ? new ArrayList<>(Arrays.asList(materialNames)) : new ArrayList<>());
     }
 
     private static double round4(double value) {
@@ -246,7 +290,10 @@ public final class LightUtil {
                         + "and photos from it");
             }
             return fail(what + " is not a light" + (piece.getCatalogId() != null
-                    ? " (catalog item '" + piece.getCatalogId() + "' is not a catalog light)" : ""));
+                    ? " (catalog item '" + piece.getCatalogId() + "' is not a catalog light)" : "")
+                    + (edit.materialNames != null
+                    ? "; glowing materials belong to a light: convert it with asLight: true (in the same call) first"
+                    : ""));
         }
         if (piece instanceof HomeFurnitureGroup) {
             return fail(what + " is a group; ungroup it first and convert its pieces");
@@ -272,7 +319,50 @@ public final class LightUtil {
             return fail("Light '" + light.getName() + "' (" + light.getId() + ") has no light sources to recolour; "
                     + "pass '" + LIGHT_SOURCES + "' instead");
         }
+        if (edit.materialNames != null && edit.materialNames.length > 0) {
+            String what = "Light '" + light.getName() + "' (" + light.getId() + ")";
+            Set<String> modelNames;
+            try {
+                modelNames = modelMaterialNames(light);
+            } catch (IOException | RuntimeException e) {
+                return fail(what + ": cannot read its model's materials to check '" + LIGHT_SOURCE_MATERIAL_NAMES
+                        + "': " + e.getMessage());
+            }
+            List<String> unknown = new ArrayList<>();
+            for (String name : edit.materialNames) {
+                if (!modelNames.contains(name)) {
+                    unknown.add("'" + name + "'");
+                }
+            }
+            if (!unknown.isEmpty()) {
+                return fail(what + ": " + String.join(", ", unknown) + (unknown.size() == 1 ? " is not a material"
+                        : " are not materials") + " of its model. Its model's materials: "
+                        + (modelNames.isEmpty() ? "none" : String.join(", ", modelNames)));
+            }
+        }
         return new Prepared(null, replacement);
+    }
+
+    /**
+     * The names of the materials of {@code piece}'s own model, sorted: the Java 3D appearance names Sweet Home 3D
+     * gave them when it loaded the model (an OBJ's {@code newmtl} names), read with {@link ModelManager} as the
+     * Modify furniture dialog's material list does. {@code PhotoRenderer} matches a light's glowing material names
+     * against these same appearance names.
+     *
+     * @throws IOException when the piece has no model or Sweet Home 3D cannot load it
+     */
+    static Set<String> modelMaterialNames(HomePieceOfFurniture piece) throws IOException {
+        if (piece.getModel() == null) {
+            throw new IOException("the piece has no model");
+        }
+        ModelManager manager = ModelManager.getInstance();
+        Set<String> names = new TreeSet<>();
+        for (HomeMaterial material : manager.getMaterials(manager.loadModel(piece.getModel()))) {
+            if (material.getName() != null) {
+                names.add(material.getName());
+            }
+        }
+        return names;
     }
 
     private static Prepared fail(String message) {
@@ -405,6 +495,9 @@ public final class LightUtil {
         }
         if (edit.power != null) {
             light.setPower(edit.power);
+        }
+        if (edit.materialNames != null) {
+            light.setLightSourceMaterialNames(edit.materialNames);
         }
     }
 }
