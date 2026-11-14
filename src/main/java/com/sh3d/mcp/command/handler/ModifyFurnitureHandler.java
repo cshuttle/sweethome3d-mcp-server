@@ -49,7 +49,8 @@ public class ModifyFurnitureHandler implements CommandHandler, CommandDescriptor
         if (!hasModifiable) {
             return Response.error("No modifiable properties provided. "
                     + "Supported: x, y, angle, elevation, width, depth, height, color, visible, mirrored, name, "
-                    + "properties, lightColor, lightSources, lightPower, asLight, dropOnTopElevation");
+                    + "properties, lightColor, lightSources, lightPower, asLight, lightSourceMaterialNames, "
+                    + "dropOnTopElevation");
         }
 
         if (params.containsKey("dropOnTopElevation")) {
@@ -93,8 +94,8 @@ public class ModifyFurnitureHandler implements CommandHandler, CommandDescriptor
                         + "pass a negative value to switch off every piece in the group, or ungroup to set one";
             }
 
-            // Light: check everything first, then replace the piece by a real light (asLight) and set its sources
-            // and power, so a refusal changes nothing
+            // Light: check everything first, then replace the piece by a real light (asLight) and set its sources,
+            // power and glowing materials, so a refusal changes nothing
             boolean converted = false;
             if (lightEdit.asLight || lightEdit.changesLight()) {
                 LightUtil.Prepared prepared = LightUtil.prepare(lightEdit, piece, accessor.getFurnitureCatalog());
@@ -240,10 +241,15 @@ public class ModifyFurnitureHandler implements CommandHandler, CommandDescriptor
                 + "properties sets custom string properties on the piece ({name: value}; null removes one), "
                 + "which Sweet Home 3D saves in the home and get_state/query_state report as 'properties'; "
                 + "other properties are kept. "
-                + "Light pieces (get_state/query_state report lightPower and lightSources for them): "
+                + "Light pieces (get_state/query_state report lightPower, lightSources and "
+                + "lightSourceMaterialNames for them): "
                 + "lightColor '#RRGGBB' recolours every light source; lightSources [{x, y, z, color, diameter?}] "
                 + "replaces them (x, y, z are fractions 0-1 of the piece's width, depth and height; diameter is a "
-                + "fraction of its width); lightPower is the app's 'Light power (%)', 0-100. "
+                + "fraction of its width); lightPower is the app's 'Light power (%)', 0-100; "
+                + "lightSourceMaterialNames ['name', ...] sets the light's glowing materials, materials of its own "
+                + "model whose whole surface gives off the light in photo renders instead of its points (Sweet Home "
+                + "3D's 'light source materials'; a name that is not one of the model's materials is refused with "
+                + "the list of those that are; [] clears them). "
                 + "A piece placed with place_furniture from a catalog light is a plain piece with no sources and "
                 + "no power: asLight: true first replaces it, in place, by a real light with the same id, level, "
                 + "position, size, name and properties. Sweet Home 3D then lights its 3D view and photos from it. "
@@ -287,6 +293,13 @@ public class ModifyFurnitureHandler implements CommandHandler, CommandDescriptor
                         .minItems(1)
                         .build())
                 .number("lightPower", "Light pieces: power in percent, 0-100 (the app's 'Light power (%)')")
+                .array("lightSourceMaterialNames", SchemaBuilder.arrayDef(
+                        "Light pieces: the light's glowing materials, names of materials of the piece's own model "
+                                + "(as Sweet Home 3D loaded them, e.g. an OBJ's newmtl names). Their surface gives "
+                                + "off the light in photo renders, and the light's points are then not used. An "
+                                + "unknown name is refused with the model's material names; [] clears them")
+                        .itemsOfType("string")
+                        .build())
                 .bool("asLight", "Replace a plain piece of a catalog light (what place_furniture creates) by a real "
                         + "light first, keeping its id, level, position, size, name and properties. Without it the "
                         + "light parameters are refused on a plain piece")
